@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/form/Button";
 
 export const dynamic = "force-dynamic";
 
+/** 客户端安全获取认证 headers（避免 SSR 预渲染时访问 localStorage） */
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 type Tab = "deposits" | "withdrawals";
 
 interface Deposit {
@@ -42,11 +49,9 @@ export default function AdminWalletPage() {
   const [overview, setOverview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const token = localStorage.getItem("token");
-  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
   const fetchData = async () => {
     setLoading(true);
+    const headers = getAuthHeaders();
     const [ovRes, depRes, withRes] = await Promise.all([
       fetch("/api/admin/wallet/overview", { headers }),
       fetch("/api/admin/wallet/deposits", { headers }),
@@ -64,6 +69,7 @@ export default function AdminWalletPage() {
   }, []);
 
   const handleAction = async (action: string, id: number, remark?: string) => {
+    const headers = getAuthHeaders();
     await fetch(`/api/admin/wallet/${action}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },

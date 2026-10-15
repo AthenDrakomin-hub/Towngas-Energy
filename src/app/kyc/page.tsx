@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/form/Input";
 
 export const dynamic = "force-dynamic";
 
+/** 客户端安全获取认证 headers */
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 export default function KycPage() {
   const [realName, setRealName] = useState("");
   const [idCard, setIdCard] = useState("");
@@ -15,11 +22,8 @@ export default function KycPage() {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
-  const token = localStorage.getItem("token");
-  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
   useEffect(() => {
-    fetch("/api/kyc", { headers })
+    fetch("/api/kyc", { headers: getAuthHeaders() })
       .then((r) => r.json())
       .then((json) => {
         if (json.ok) {
@@ -36,7 +40,7 @@ export default function KycPage() {
     setMessage("");
     const res = await fetch("/api/kyc", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...headers },
+      headers: { "Content-Type": "application/json", ...getAuthHeaders() },
       body: JSON.stringify({ realName, idCard }),
     });
     const json = await res.json();

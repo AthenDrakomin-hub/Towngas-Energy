@@ -9,6 +9,13 @@ import { fmtInt } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+/** 客户端安全获取认证 headers */
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 type Tab = "deposit" | "withdraw" | "history";
 
 const DEPOSIT_STATUS: Record<string, { label: string; color: string }> = {
@@ -33,12 +40,9 @@ export default function WalletPage() {
   const [withdrawName, setWithdrawName] = useState("");
   const [message, setMessage] = useState("");
 
-  const token = localStorage.getItem("token");
-  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
   const historyQuery = useQuery({
     queryKey: ["wallet-history"],
-    queryFn: async () => (await fetch("/api/wallet/history", { headers })).json(),
+    queryFn: async () => (await fetch("/api/wallet/history", { headers: getAuthHeaders() })).json(),
   });
 
   const deposits = historyQuery.data?.data?.deposits ?? [];
@@ -48,7 +52,7 @@ export default function WalletPage() {
     mutationFn: async () => {
       const res = await fetch("/api/wallet/deposit", {
         method: "POST",
-        headers: { "content-type": "application/json", ...headers },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ amount: depositAmount, paymentProof: depositProof }),
       });
       return res.json();
@@ -68,7 +72,7 @@ export default function WalletPage() {
     mutationFn: async () => {
       const res = await fetch("/api/wallet/withdraw", {
         method: "POST",
-        headers: { "content-type": "application/json", ...headers },
+        headers: { "content-type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ amount: withdrawAmount, withdrawAccount, withdrawName }),
       });
       return res.json();
