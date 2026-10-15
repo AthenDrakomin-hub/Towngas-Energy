@@ -50,10 +50,10 @@ export default function AdminWalletPage() {
       fetch("/api/admin/wallet/deposits", { headers }),
       fetch("/api/admin/wallet/withdrawals", { headers }),
     ]);
-    const [ov, dep, with] = await Promise.all([ovRes.json(), depRes.json(), withRes.json()]);
+    const [ov, dep, withData] = await Promise.all([ovRes.json(), depRes.json(), withRes.json()]);
     if (ov.ok) setOverview(ov.data);
     if (dep.ok) setDeposits(dep.data.list || []);
-    if (with.ok) setWithdrawals(with.data.list || []);
+    if (withData.ok) setWithdrawals(withData.data.list || []);
     setLoading(false);
   };
 
