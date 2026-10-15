@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/display/Card";
 import { Button } from "@/components/ui/form/Button";
 import { Input } from "@/components/ui/form/Input";
 
+export const dynamic = "force-dynamic";
+
 interface User {
   id: number;
   username: string;

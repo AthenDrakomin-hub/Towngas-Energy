@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/display/Card";
 
+export const dynamic = "force-dynamic";
+
 interface ErrorLog {
   id: number;
   message: string;

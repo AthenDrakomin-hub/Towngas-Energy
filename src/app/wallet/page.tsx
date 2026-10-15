@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/form/Button";
 import { Input } from "@/components/ui/form/Input";
 import { fmtInt } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 type Tab = "deposit" | "withdraw" | "history";
 
 const DEPOSIT_STATUS: Record<string, { label: string; color: string }> = {

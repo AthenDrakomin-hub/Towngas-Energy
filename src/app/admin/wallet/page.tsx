@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/display/Card";
 import { Button } from "@/components/ui/form/Button";
 
+export const dynamic = "force-dynamic";
+
 type Tab = "deposits" | "withdrawals";
 
 interface Deposit {
