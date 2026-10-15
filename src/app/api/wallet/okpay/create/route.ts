@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     assertOkpayConfig();
-    const user = await requireUser(req);
+    const user = await requireUser();
     const body = (await req.json().catch(() => ({}))) as {
       amount?: number;
     };
