@@ -72,7 +72,7 @@ export async function POST(req: Request) {
 
       await tx.insert(accounts).values({
         userId: newUser.id,
-        balance: "0",
+        balance: 0,
       });
 
       return [newUser];
