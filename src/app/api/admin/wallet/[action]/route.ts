@@ -132,10 +132,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       remark?: string;
     };
 
-    if (!id) {
+    if (!body.id) {
       return errorResponse(new Error("缺少 ID"));
     }
-    const id = id;
+    const id = body.id;
 
     // 充值审核通过（事务：更新状态 + 加余额 + 流水）
     if (action === "approve-deposit") {
