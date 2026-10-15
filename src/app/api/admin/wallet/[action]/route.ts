@@ -132,13 +132,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       remark?: string;
     };
 
-    if (!body.id) {
+    if (!id) {
       return errorResponse(new Error("缺少 ID"));
     }
+    const id = id;
 
     // 充值审核通过（事务：更新状态 + 加余额 + 流水）
     if (action === "approve-deposit") {
-      const [deposit] = await db.select().from(deposits).where(eq(deposits.id, body.id));
+      const [deposit] = await db.select().from(deposits).where(eq(deposits.id, id));
       if (!deposit) {
         return errorResponse(new Error("充值记录不存在"));
       }
@@ -150,7 +151,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         await tx
           .update(deposits)
           .set({ status: "approved", reviewedBy: admin.id, reviewedAt: new Date() })
-          .where(eq(deposits.id, body.id));
+          .where(eq(deposits.id, id));
 
         const [account] = await tx.select().from(accounts).where(eq(accounts.userId, deposit.userId)).for("update");
         if (account) {
@@ -181,11 +182,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
 
     // 拒绝充值
     if (action === "reject-deposit") {
-      const [deposit] = await db.select().from(deposits).where(eq(deposits.id, body.id));
+      const [deposit] = await db.select().from(deposits).where(eq(deposits.id, id));
       await db
         .update(deposits)
         .set({ status: "rejected", reviewedBy: admin.id, reviewedAt: new Date(), remark: body.remark ?? "审核未通过" })
-        .where(eq(deposits.id, body.id));
+        .where(eq(deposits.id, id));
 
       if (deposit) {
         await sendNotification(
@@ -201,7 +202,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
 
     // 提现审核通过（事务：更新状态 + 流水记录实际余额）
     if (action === "approve-withdraw") {
-      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, body.id));
+      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, id));
       if (!withdrawal) {
         return errorResponse(new Error("提现记录不存在"));
       }
@@ -214,7 +215,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         await tx
           .update(withdrawals)
           .set({ status: "paid", reviewedBy: admin.id, reviewedAt: new Date(), paidAt: new Date() })
-          .where(eq(withdrawals.id, body.id));
+          .where(eq(withdrawals.id, id));
 
         // 查询实际余额（冻结后余额 = 当前余额，因为申请时已冻结）
         const [account] = await tx.select().from(accounts).where(eq(accounts.userId, withdrawal.userId));
@@ -244,7 +245,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
 
     // 拒绝提现（事务：退回余额 + 流水 + 更新状态）
     if (action === "reject-withdraw") {
-      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, body.id));
+      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, id));
       if (!withdrawal) {
         return errorResponse(new Error("提现记录不存在"));
       }
@@ -272,7 +273,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
         await tx
           .update(withdrawals)
           .set({ status: "rejected", reviewedBy: admin.id, reviewedAt: new Date(), remark: body.remark ?? "审核未通过" })
-          .where(eq(withdrawals.id, body.id));
+          .where(eq(withdrawals.id, id));
       });
 
       // 发送通知
