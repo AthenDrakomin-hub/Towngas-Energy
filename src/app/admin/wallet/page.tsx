@@ -41,7 +41,7 @@ export default function AdminWalletPage() {
   const [loading, setLoading] = useState(true);
 
   const token = localStorage.getItem("token");
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   const fetchData = async () => {
     setLoading(true);

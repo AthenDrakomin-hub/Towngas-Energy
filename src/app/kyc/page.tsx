@@ -14,7 +14,7 @@ export default function KycPage() {
   const [message, setMessage] = useState("");
 
   const token = localStorage.getItem("token");
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   useEffect(() => {
     fetch("/api/kyc", { headers })
