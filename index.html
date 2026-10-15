@@ -169,6 +169,8 @@ html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC"
 }
 .toast.show{opacity:1}
 </style>
+<!-- 访客账号配置（独立文件，不提交git，生产环境部署时创建） -->
+<script src="config.js"></script>
 </head>
 <body>
 
@@ -836,11 +838,19 @@ function init() {
     devId = 'web_visitor_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
   }
 
-  // 支持 URL 参数自动登录：?user=xxx&pwd=xxx
+  // 支持 URL 参数自动登录：?user=xxx&pwd=xxx（最高优先级）
   var params = getUrlParams();
   if (params.user && params.pwd) {
     document.getElementById('loginUser').value = params.user;
     document.getElementById('loginPass').value = params.pwd;
+    doLogin();
+    return;
+  }
+
+  // 从 config.js 读取访客账号自动登录（生产环境部署，不提交git）
+  if (window.VISITOR_CONFIG && window.VISITOR_CONFIG.userName && window.VISITOR_CONFIG.password) {
+    document.getElementById('loginUser').value = window.VISITOR_CONFIG.userName;
+    document.getElementById('loginPass').value = window.VISITOR_CONFIG.password;
     doLogin();
     return;
   }

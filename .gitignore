@@ -45,3 +45,4 @@ docker-compose.*.yml
 # 临时脚本
 deploy-fix.sh
 *.tmp.sh
+config.js
