@@ -20,6 +20,9 @@ tsconfig.tsbuildinfo
 drizzle/
 *.db
 *.sqlite
+collector/*.db
+collector/*.csv
+collector/data/
 
 # 日志
 logs/
