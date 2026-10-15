@@ -40,11 +40,14 @@ export async function POST(req: Request) {
       return errorResponse(new Error("密码至少 6 位"));
     }
 
+    const username = body.username;
+    const password = body.password;
+
     // 检查用户名是否已存在
     const existing = await db
       .select()
       .from(users)
-      .where(eq(users.username, body.username))
+      .where(eq(users.username, username))
       .limit(1);
 
     if (existing.length > 0) {
@@ -52,16 +55,16 @@ export async function POST(req: Request) {
     }
 
     // 加密密码
-    const hashedPassword = hashPassword(body.password);
+    const hashedPassword = hashPassword(password);
 
     // 创建用户 + 初始化账户（同一事务，防止孤儿用户）
     const [user] = await db.transaction(async (tx) => {
       const [newUser] = await tx
         .insert(users)
         .values({
-          username: body.username,
+          username,
           passwordHash: hashedPassword,
-          nickname: body.username,
+          nickname: username,
           role: "user",
           status: "active",
         })

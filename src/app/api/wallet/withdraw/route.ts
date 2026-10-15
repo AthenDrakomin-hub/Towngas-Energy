@@ -134,6 +134,9 @@ export async function POST(req: Request) {
     const amount = Math.floor(body.amount);
     const fee = Math.floor(amount * 0.05);
     const actualAmount = amount - fee;
+    const withdrawAccount = body.withdrawAccount?.trim() ?? "";
+    const withdrawName = body.withdrawName?.trim() ?? "";
+    const remark = body.remark?.slice(0, 200) ?? "";
 
     // ===== 大额交易标记 =====
     const isLargeAmount = amount >= RISK_RULES.largeWithdrawThreshold;
@@ -162,9 +165,9 @@ export async function POST(req: Request) {
           amount,
           fee,
           actualAmount,
-          withdrawAccount: body.withdrawAccount.trim(),
-          withdrawName: body.withdrawName.trim(),
-          remark: body.remark?.slice(0, 200) + (isLargeAmount ? " [大额交易]" : ""),
+          withdrawAccount,
+          withdrawName,
+          remark: remark + (isLargeAmount ? " [大额交易]" : ""),
           status: "pending",
         })
         .returning();
