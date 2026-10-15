@@ -21,16 +21,19 @@ export async function POST(req: Request) {
     };
 
     // 参数校验
-    if (!body.username || !/^[a-zA-Z0-9_]{3,20}$/.test(body.username)) {
+    const username = body.username;
+    const password = body.password;
+
+    if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
       return errorResponse(new Error("用户名格式错误：3-20位字母/数字/下划线"));
     }
 
-    if (!body.password || body.password.length < 6) {
+    if (!password || password.length < 6) {
       return errorResponse(new Error("密码至少 6 位"));
     }
 
     // 密码强度基本检查（至少包含字母和数字）
-    if (!/[a-zA-Z]/.test(body.password) || !/\d/.test(body.password)) {
+    if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
       return errorResponse(new Error("密码需同时包含字母和数字"));
     }
 
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
     const existing = await db
       .select()
       .from(users)
-      .where(eq(users.username, body.username))
+      .where(eq(users.username, username))
       .limit(1);
 
     if (existing.length > 0) {
@@ -46,16 +49,16 @@ export async function POST(req: Request) {
     }
 
     // bcrypt 哈希密码
-    const hashedPassword = await bcrypt.hash(body.password, BCRYPT_ROUNDS);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_ROUNDS);
 
     // 创建用户 + 初始化账户（同一事务，防止孤儿用户）
     const [user] = await db.transaction(async (tx) => {
       const [newUser] = await tx
         .insert(users)
         .values({
-          username: body.username,
+          username,
           passwordHash: hashedPassword,
-          nickname: body.username,
+          nickname: username,
           role: "user",
           status: "active",
         })
@@ -63,7 +66,7 @@ export async function POST(req: Request) {
 
       await tx.insert(accounts).values({
         userId: newUser.id,
-        balance: 0,
+        balance: "0",
       });
 
       return [newUser];
