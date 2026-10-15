@@ -4,7 +4,7 @@ import { errorResponse, ok } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-/** 上报前端错误（公开接口，无需登录） */
+/** 上报前端错误 */
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as {

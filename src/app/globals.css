@@ -1,31 +1,198 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "../styles/tokens.css";
+@import "../styles/animations.css";
 
-:root {
-  --primary: #00a650;
-  --primary-dark: #008153;
+@theme {
+  /* 品牌色映射到Tailwind — 港华绿 */
+  --color-primary: #00a650;
+  --color-primary-dark: #008153;
+  --color-primary-light: #e6f7ee;
+  --color-success: #00a650;
+  --color-danger: #ff4d4f;
+  --color-warning: #f5a623;
+  --color-info: #1890ff;
+
+  /* 兼容旧变量名 */
+  --color-up: #00a650;
+  --color-down: #ff4d4f;
+  --color-gold: #f5a623;
+  --color-blue: #1890ff;
+
+  /* 业务彩色卡片 */
+  --color-pink: #f06eb3;
+  --color-orange: #f5a623;
+
+  /* 中性色（浅色主题） */
+  --color-bg: #f5f7fa;
+  --color-bg-0: #f5f7fa;
+  --color-bg-1: #ffffff;
+  --color-bg-2: #f8fafc;
+  --color-bg-3: #f1f5f9;
+  --color-panel: #ffffff;
+  --color-panel2: #f8fafc;
+  --color-line: #e5e7eb;
+  --color-line-light: #f0f0f0;
+
+  /* 文字色 */
+  --color-ink: #1f2937;
+  --color-text-1: #1f2937;
+  --color-text-2: #4b5563;
+  --color-mute: #6b7280;
+  --color-text-3: #6b7280;
+
+  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-sans: Inter, "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--color-bg-0);
+  color: var(--color-text-1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
-    "Microsoft YaHei", sans-serif;
+  min-height: 100vh;
 }
 
-/* 数字等宽 */
-.num {
+/* 滚动条 */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--color-bg-3); }
+::-webkit-scrollbar-thumb { background: var(--color-line); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-4); }
+
+/* 选中文本 */
+::selection { background: var(--color-primary-glow); color: var(--color-text-1); }
+
+/* ---- 工具类 ---- */
+
+/* 卡片面板（自适应明暗主题） */
+@utility glass {
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-sm);
+}
+
+@utility glass-strong {
+  background: var(--color-bg-1);
+  border: 1px solid var(--color-line);
+  box-shadow: var(--shadow-md);
+}
+
+/* 等宽数字 */
+@utility num {
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
-/* 滚动条美化 */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* 标签文字 */
+@utility label {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: var(--color-text-3);
+  text-transform: uppercase;
 }
-::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
+
+/* 品牌外发光 */
+@utility glow-primary {
+  box-shadow: 0 0 20px rgba(46, 163, 242, 0.25);
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+@utility glow-success {
+  box-shadow: 0 0 20px rgba(41, 196, 169, 0.2);
+}
+
+/* 港华Logo深色背景增强 */
+.towngas-logo {
+  filter: brightness(1.4) saturate(1.2);
+}
+
+/* 焦点可见性（可访问性） */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* 禁用文本选择（数据展示区） */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ============================================
+   管理端专用样式 — 浅色专业后台风格
+   与客户端共享浅色主题，但更紧凑、更数据密集
+   ============================================ */
+[data-admin="true"] {
+  background: #f5f7fa;
+}
+
+[data-admin="true"] body {
+  background-image: none !important;
+  background: #f5f7fa !important;
+}
+
+/* 管理端卡片：更简洁的边框 */
+[data-admin="true"] .glass,
+[data-admin="true"] .glass-strong {
+  background: #ffffff !important;
+  border: 1px solid #e5e7eb !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+}
+
+/* 管理端按钮：扁平专业风格 */
+[data-admin="true"] button {
+  border-radius: 4px !important;
+}
+
+/* 管理端表格：更紧凑 */
+[data-admin="true"] table {
+  font-size: 12px !important;
+}
+
+[data-admin="true"] th,
+[data-admin="true"] td {
+  padding: 8px 12px !important;
+  border-color: #f0f0f0 !important;
+}
+
+[data-admin="true"] th {
+  background: #f8fafc !important;
+  color: #6b7280 !important;
+  font-weight: 600 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+/* 管理端输入框 */
+[data-admin="true"] input,
+[data-admin="true"] select,
+[data-admin="true"] textarea {
+  background: #ffffff !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 4px !important;
+  color: #1f2937 !important;
+}
+
+[data-admin="true"] input:focus,
+[data-admin="true"] select:focus {
+  border-color: #00a650 !important;
+  box-shadow: 0 0 0 2px rgba(0, 166, 80, 0.1) !important;
+}
+
+/* 管理端滚动条 */
+[data-admin="true"] ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+[data-admin="true"] ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
 }

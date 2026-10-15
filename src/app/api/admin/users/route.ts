@@ -5,10 +5,10 @@ import { errorResponse, ok, requireScope } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-/** 获取用户列表（支持搜索、分页） */
+/** 获取用户列表 */
 export async function GET(req: Request) {
   try {
-    await requireScope("users", req);
+    await requireScope("users");
 
     const { searchParams } = new URL(req.url);
     const page = Number(searchParams.get("page") || 1);
@@ -17,7 +17,9 @@ export async function GET(req: Request) {
 
     let where = undefined;
     if (keyword) {
-      where = or(like(users.username, `%${keyword}%`));
+      where = or(
+        like(users.username, `%${keyword}%`),
+      );
     }
 
     const list = await db
@@ -38,7 +40,12 @@ export async function GET(req: Request) {
       .limit(pageSize)
       .offset((page - 1) * pageSize);
 
-    return ok({ list, page, pageSize, total: list.length });
+    return ok({
+      list,
+      page,
+      pageSize,
+      total: list.length,
+    });
   } catch (err) {
     return errorResponse(err);
   }
@@ -47,7 +54,7 @@ export async function GET(req: Request) {
 /** 更新用户状态（禁用/启用） */
 export async function PATCH(req: Request) {
   try {
-    await requireScope("users", req);
+    await requireScope("users");
 
     const body = (await req.json().catch(() => ({}))) as {
       userId?: number;
@@ -58,11 +65,10 @@ export async function PATCH(req: Request) {
       return errorResponse(new Error("参数错误"));
     }
 
-    if (!["active", "banned"].includes(body.status)) {
-      return errorResponse(new Error("状态值无效"));
-    }
-
-    await db.update(users).set({ status: body.status }).where(eq(users.id, body.userId));
+    await db
+      .update(users)
+      .set({ status: body.status })
+      .where(eq(users.id, body.userId));
 
     return ok({ message: "用户状态已更新" });
   } catch (err) {

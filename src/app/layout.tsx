@@ -1,17 +1,25 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
-import { Providers } from "./providers";
+import { PLATFORM } from "@/lib/constants";
+import { Providers } from "@/components/providers";
 
 export const metadata: Metadata = {
-  title: "港华智慧能源 | Carbon Nebula",
-  description: "港华智慧能源投资平台",
+  title: `${PLATFORM.fullName}`,
+  description: `${PLATFORM.fullName} · 港华绿电 / 港华碳资产 / 港华数能 / 港华综能 四位一体 · 虚拟积分，仅供娱乐`,
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="zh-CN">
-      <body className="min-h-screen bg-gray-50 text-gray-900 antialiased">
+      <body className="min-h-screen antialiased">
         <Providers>{children}</Providers>
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[5] border-t border-gray-200 bg-white/80 py-1 text-center text-[10px] tracking-[0.24em] text-mute backdrop-blur">
+          {PLATFORM.disclaimer}
+        </div>
       </body>
     </html>
   );

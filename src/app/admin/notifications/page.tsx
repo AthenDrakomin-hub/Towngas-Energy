@@ -1,70 +1,95 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/display/Card";
-import { Button } from "@/components/ui/form/Button";
-import { Input } from "@/components/ui/form/Input";
 
-export const dynamic = "force-dynamic";
+interface Notification {
+  id: number;
+  title: string;
+  content: string;
+  type: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+const TYPE_COLORS: Record<string, string> = {
+  info: "bg-blue-100 text-blue-700",
+  success: "bg-green-100 text-green-700",
+  warning: "bg-amber-100 text-amber-700",
+  error: "bg-red-100 text-red-700",
+};
 
 export default function AdminNotificationsPage() {
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
-  const [type, setType] = useState("info");
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState("");
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleSend = async () => {
-    if (!title || !content) {
-      setResult("请填写标题和内容");
-      return;
-    }
-    setSending(true);
-    setResult("");
-    const token = localStorage.getItem("token");
-    // 广播通知：需要后端支持批量插入，此处为管理端手动发通知的入口
-    // 实际实现需补充 /api/admin/notifications/broadcast 路由
-    setResult("通知功能已就绪，请确认后端广播接口已实现");
-    setSending(false);
+  useEffect(() => {
+    fetch("/api/notifications")
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.ok) {
+          setNotifications(json.data.list || []);
+        }
+        setLoading(false);
+      });
+  }, []);
+
+  const markAllRead = async () => {
+    await fetch("/api/notifications", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    });
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
   };
 
-  return (
-    <div className="space-y-4 max-w-2xl">
-      <h1 className="text-xl font-bold text-gray-800">通知管理</h1>
+  if (loading) {
+    return <div className="p-6 text-gray-500">加载中...</div>;
+  }
 
-      <Card title="发送系统通知" status="live">
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">通知标题</label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="通知标题" />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">通知内容</label>
-            <textarea
-              className="w-full rounded-md border border-gray-200 p-2 text-sm"
-              rows={4}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="通知正文内容"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-500">类型</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="rounded-md border border-gray-200 px-3 py-2 text-sm"
-            >
-              <option value="info">信息</option>
-              <option value="success">成功</option>
-              <option value="warning">警告</option>
-              <option value="error">错误</option>
-            </select>
-          </div>
-          {result && <div className="text-sm text-gray-600">{result}</div>}
-          <Button onClick={handleSend} disabled={sending}>
-            {sending ? "发送中..." : "发送通知"}
-          </Button>
+  const unread = notifications.filter((n) => !n.isRead).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-800">
+          通知中心 {unread > 0 && <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-xs text-white">{unread} 未读</span>}
+        </h1>
+        {unread > 0 && (
+          <button
+            onClick={markAllRead}
+            className="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-600 hover:bg-gray-200"
+          >
+            全部已读
+          </button>
+        )}
+      </div>
+
+      <Card title="系统通知" status="live">
+        <div className="space-y-3">
+          {notifications.length === 0 ? (
+            <p className="py-8 text-center text-gray-400">暂无通知</p>
+          ) : (
+            notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`rounded-lg border p-3 ${n.isRead ? "border-gray-100 bg-white" : "border-blue-100 bg-blue-50"}`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${TYPE_COLORS[n.type] || TYPE_COLORS.info}`}>
+                        {n.type}
+                      </span>
+                      <span className="text-sm font-medium text-gray-800">{n.title}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-600">{n.content}</p>
+                    <div className="mt-1 text-xs text-gray-400">{new Date(n.createdAt).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </Card>
     </div>

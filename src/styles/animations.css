@@ -1,0 +1,104 @@
+/* ============================================================
+   动画关键帧 Animations
+   ============================================================ */
+
+/* 实时脉冲点 */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+.animate-pulse-dot { animation: pulse-dot 1s linear infinite; }
+
+/* 日志行入场 */
+@keyframes tick-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-tick-in { animation: tick-in 150ms ease-out; }
+
+/* 上涨闪烁 */
+@keyframes flash-up {
+  0% { background-color: rgba(41, 196, 169, 0.18); }
+  100% { background-color: transparent; }
+}
+.animate-flash-up { animation: flash-up 200ms linear; }
+
+/* 下跌闪烁 */
+@keyframes flash-down {
+  0% { background-color: rgba(255, 77, 79, 0.18); }
+  100% { background-color: transparent; }
+}
+.animate-flash-down { animation: flash-down 200ms linear; }
+
+/* 页面入场 */
+@keyframes reveal-in {
+  0% { opacity: 0; transform: scale(0.97); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.animate-reveal { animation: reveal-in 400ms var(--ease-out); }
+
+/* 结算粒子上升 */
+@keyframes drift {
+  0% { transform: translate3d(0, 0, 0); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translate3d(0, -140px, 0); opacity: 0; }
+}
+.animate-drift { animation: drift linear infinite; }
+
+/* 进度条填充 */
+.bar-fill { transition: width 400ms ease-out; }
+
+/* Toast滑入 */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-toast-in { animation: toast-in 250ms var(--ease-out); }
+
+/* Modal入场 */
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-modal-in { animation: modal-in 300ms var(--ease-out); }
+
+/* 背景遮罩淡入 */
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-overlay-in { animation: overlay-in 200ms ease-out; }
+
+/* 倒计时危险脉冲 */
+@keyframes danger-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 77, 79, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(255, 77, 79, 0); }
+}
+.animate-danger-pulse { animation: danger-pulse 1s ease-in-out infinite; }
+
+/* 数字滚动（通过JS驱动，这里定义过渡） */
+.num-roll { transition: color 200ms ease-out; }
+
+/* 骨架屏闪烁 */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.animate-skeleton {
+  background: linear-gradient(90deg, var(--color-bg-2) 25%, var(--color-bg-3) 50%, var(--color-bg-2) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+}
+
+/* 旋转加载 */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.animate-spin { animation: spin 0.8s linear infinite; }
+
+/* 右侧滑入通知 */
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-right { animation: slide-in-right 0.3s ease-out; }

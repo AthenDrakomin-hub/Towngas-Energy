@@ -6,9 +6,9 @@ import { errorResponse, ok, requireUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 /** 获取实名认证状态 */
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const user = await requireUser(req);
+    const user = await requireUser();
     const [u] = await db
       .select({
         realName: users.realName,
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
 /** 提交实名认证 */
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(req);
+    const user = await requireUser();
     const body = (await req.json().catch(() => ({}))) as {
       realName?: string;
       idCard?: string;
@@ -50,11 +50,14 @@ export async function POST(req: Request) {
       .set({
         realName: body.realName,
         idCard: body.idCard,
-        kycStatus: "verified",
+        kycStatus: "verified", // 平台内自动通过
       })
       .where(eq(users.id, user.id));
 
-    return ok({ message: "实名认证成功", kycStatus: "verified" });
+    return ok({
+      message: "实名认证成功",
+      kycStatus: "verified",
+    });
   } catch (err) {
     return errorResponse(err);
   }

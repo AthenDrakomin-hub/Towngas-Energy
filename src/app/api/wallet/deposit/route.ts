@@ -1,47 +1,83 @@
+import { randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { deposits } from "@/db/schema";
 import { errorResponse, ok, requireUser } from "@/lib/auth";
+import { OKPAY_CONFIG, generateSign } from "@/lib/okpay-config";
 
 export const dynamic = "force-dynamic";
 
 /**
- * 手动充值申请（用户上传凭证号，管理员人工审核）
+ * Okpay 创建充值订单
+ * 用户发起充值 → 调用 Okpay 创建订单 → 返回支付地址/二维码
  */
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(req);
+    const user = await requireUser();
     const body = (await req.json().catch(() => ({}))) as {
       amount?: number;
-      paymentProof?: string;
-      remark?: string;
     };
 
     if (!body.amount || body.amount < 10) {
       return errorResponse(new Error("最低充值金额为 10 元"));
     }
-    if (!body.paymentProof?.trim()) {
-      return errorResponse(new Error("请填写转账凭证号"));
-    }
 
     const amount = Math.floor(body.amount);
+    const orderId = `DEP${Date.now()}${randomUUID().slice(0, 8)}`;
 
+    // 1. 先在本地创建充值记录（状态 pending）
     const [deposit] = await db
       .insert(deposits)
       .values({
         userId: user.id,
-        amount: String(amount),
-        paymentMethod: "manual",
+        amount,
+        paymentMethod: "okpay_usdt",
         status: "pending",
-        remark: `凭证号: ${body.paymentProof.trim()}${body.remark ? ` | ${body.remark.slice(0, 100)}` : ""}`,
+        remark: `Okpay 订单号: ${orderId}`,
       })
       .returning();
 
+    // 2. 调用 Okpay 创建订单接口
+    const params = {
+      appid: OKPAY_CONFIG.appId,
+      amount: amount.toFixed(2),
+      order_id: orderId,
+      notify_url: OKPAY_CONFIG.notifyUrl,
+      return_url: "https://goodspage.cn/wallet?tab=history",
+    };
+
+    const sign = generateSign(params);
+
+    // TODO: 确认创建订单接口路径（一般是 /api/order/create 或 /v1/pay/create）
+    const createOrderUrl = `${OKPAY_CONFIG.baseUrl}/api/order/create`;
+
+    const response = await fetch(createOrderUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...params, sign }),
+    });
+
+    const result = await response.json();
+
+    if (result.code !== 0 && result.code !== 200) {
+      // 创建失败，更新本地记录
+      await db
+        .update(deposits)
+        .set({ status: "rejected", remark: `Okpay 创建失败: ${result.msg || "未知错误"}` })
+        .where(eq(deposits.id, deposit.id));
+
+      return errorResponse(new Error(`支付通道创建订单失败: ${result.msg || "请稍后重试"}`));
+    }
+
+    // 3. 返回支付信息给前端
     return ok({
-      id: deposit.id,
-      amount: deposit.amount,
-      status: deposit.status,
-      message: "充值申请已提交，管理员将在 1-2 小时内审核",
+      depositId: deposit.id,
+      orderId,
+      amount,
+      payUrl: result.data?.pay_url || result.data?.qr_code_url,
+      payAddress: result.data?.address,
+      qrCode: result.data?.qr_code,
+      message: "订单创建成功，请扫码支付",
     });
   } catch (err) {
     return errorResponse(err);

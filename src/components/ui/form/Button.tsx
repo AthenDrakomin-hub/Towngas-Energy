@@ -1,48 +1,64 @@
 "use client";
 
-import { ButtonHTMLAttributes, ReactNode } from "react";
+import { ButtonHTMLAttributes, forwardRef } from "react";
 import clsx from "clsx";
 
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
+type Size = "sm" | "md" | "lg";
+
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "danger" | "ghost";
-  size?: "sm" | "md" | "lg";
-  children: ReactNode;
+  variant?: Variant;
+  size?: Size;
+  loading?: boolean;
+  fullWidth?: boolean;
 }
 
-const variantStyles = {
-  primary: "bg-[#00a650] text-white hover:bg-[#008153] disabled:bg-gray-300",
-  secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:bg-gray-100",
-  danger: "bg-red-500 text-white hover:bg-red-600 disabled:bg-red-300",
-  ghost: "bg-transparent text-gray-600 hover:bg-gray-100",
+const variantStyles: Record<Variant, string> = {
+  primary:
+    "bg-primary text-white hover:bg-primary/90 active:bg-primary/80 shadow-[0_0_16px_rgba(46,163,242,0.3)] disabled:shadow-none",
+  secondary:
+    "bg-bg-3 text-text-1 border border-line hover:border-line-light hover:bg-bg-3/80 active:bg-bg-3",
+  ghost:
+    "text-text-2 hover:text-text-1 hover:bg-bg-3 active:bg-bg-3",
+  danger:
+    "bg-danger text-white hover:bg-danger/90 active:bg-danger/80 shadow-[0_0_16px_rgba(255,77,79,0.25)]",
+  success:
+    "bg-success text-bg-0 hover:bg-success/90 active:bg-success/80 shadow-[0_0_16px_rgba(41,196,169,0.3)]",
 };
 
-const sizeStyles = {
-  sm: "px-3 py-1.5 text-xs",
-  md: "px-4 py-2 text-sm",
-  lg: "px-6 py-3 text-base",
+const sizeStyles: Record<Size, string> = {
+  sm: "h-8 px-3 text-xs gap-1.5",
+  md: "h-10 px-4 text-sm gap-2",
+  lg: "h-12 px-6 text-base gap-2",
 };
 
-export function Button({
-  variant = "primary",
-  size = "md",
-  className = "",
-  children,
-  disabled,
-  ...props
-}: ButtonProps) {
-  return (
-    <button
-      className={clsx(
-        "rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-1",
-        variantStyles[variant],
-        sizeStyles[size],
-        disabled && "cursor-not-allowed opacity-60",
-        className
-      )}
-      disabled={disabled}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ variant = "primary", size = "md", loading, fullWidth, className, children, disabled, ...props }, ref) => {
+    return (
+      <button
+        ref={ref}
+        disabled={disabled || loading}
+        className={clsx(
+          "inline-flex items-center justify-center rounded-lg font-medium transition-all duration-150",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-bg-0",
+          "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0",
+          "hover:-translate-y-px active:translate-y-0",
+          variantStyles[variant],
+          sizeStyles[size],
+          fullWidth && "w-full",
+          className,
+        )}
+        {...props}
+      >
+        {loading && (
+          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+        )}
+        {children}
+      </button>
+    );
+  },
+);
+Button.displayName = "Button";

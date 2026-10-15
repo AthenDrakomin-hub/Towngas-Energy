@@ -1,42 +1,54 @@
 "use client";
 
 import { ReactNode } from "react";
+import clsx from "clsx";
 
 interface CardProps {
-  title?: string;
-  status?: "live" | "warning" | "error" | "info";
+  title?: ReactNode;
+  status?: "live" | "warn" | "off" | "idle";
+  stamp?: ReactNode;
+  right?: ReactNode;
   children: ReactNode;
   className?: string;
+  bodyClass?: string;
+  hover?: boolean;
 }
 
-const statusStyles: Record<string, string> = {
-  live: "bg-green-100 text-green-700",
-  warning: "bg-yellow-100 text-yellow-700",
-  error: "bg-red-100 text-red-700",
-  info: "bg-blue-100 text-blue-700",
+const statusColor = {
+  live: "bg-success",
+  warn: "bg-danger",
+  idle: "bg-primary",
+  off: "bg-text-4",
 };
 
-const statusLabels: Record<string, string> = {
-  live: "运行中",
-  warning: "注意",
-  error: "异常",
-  info: "信息",
-};
-
-export function Card({ title, status, children, className = "" }: CardProps) {
+export function Card({ title, status = "live", stamp, right, children, className, bodyClass, hover }: CardProps) {
   return (
-    <div className={`rounded-xl border border-gray-200 bg-white shadow-sm ${className}`}>
-      {(title || status) && (
-        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-          {title && <h3 className="text-sm font-semibold text-gray-800">{title}</h3>}
-          {status && (
-            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusStyles[status]}`}>
-              {statusLabels[status]}
-            </span>
-          )}
-        </div>
+    <section
+      className={clsx(
+        "glass rounded-xl flex flex-col overflow-hidden",
+        hover && "transition-all duration-200 hover:border-line-light hover:-translate-y-0.5",
+        className,
       )}
-      <div className="p-4">{children}</div>
-    </div>
+    >
+      {title && (
+        <header className="flex h-10 shrink-0 items-center gap-2 border-b border-line px-4">
+          {status && (
+            <span
+              className={clsx(
+                "h-1.5 w-1.5 shrink-0 rounded-full",
+                statusColor[status],
+                status === "live" && "animate-pulse-dot",
+              )}
+            />
+          )}
+          <h2 className="truncate text-xs font-semibold tracking-wider text-text-1/90 uppercase">{title}</h2>
+          <div className="ml-auto flex items-center gap-2 text-[10px] text-text-3">
+            {right}
+            {stamp && <span className="num">{stamp}</span>}
+          </div>
+        </header>
+      )}
+      <div className={clsx("min-w-0 flex-1 p-4", bodyClass)}>{children}</div>
+    </section>
   );
 }

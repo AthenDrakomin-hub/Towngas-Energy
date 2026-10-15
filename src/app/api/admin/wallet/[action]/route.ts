@@ -5,19 +5,25 @@ import { errorResponse, ok, requireScope } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
+/** 发送通知辅助函数 */
 async function sendNotification(
   userId: number,
   title: string,
   content: string,
   type: "info" | "success" | "warning" | "error" = "info"
 ) {
-  await db.insert(notifications).values({ userId, title, content, type });
+  await db.insert(notifications).values({
+    userId,
+    title,
+    content,
+    type,
+  });
 }
 
-/** 管理端钱包接口 — 查询类 */
+/** 管理端钱包接口 */
 export async function GET(req: Request, { params }: { params: Promise<{ action: string }> }) {
   try {
-    await requireScope("finance", req);
+    await requireScope("finance");
     const { action } = await params;
 
     // 资金总览
@@ -115,10 +121,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ action: 
   }
 }
 
-/** 管理端钱包接口 — 审核操作（全部事务化） */
+/** 审核操作 */
 export async function POST(req: Request, { params }: { params: Promise<{ action: string }> }) {
   try {
-    const admin = await requireScope("finance", req);
+    const admin = await requireScope("finance");
     const { action } = await params;
     const body = (await req.json().catch(() => ({}))) as {
       id?: number;
@@ -130,74 +136,55 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       return errorResponse(new Error("缺少 ID"));
     }
 
-    // ===== 充值审核通过（事务：更新状态 + 加余额 + 记流水 + 发通知） =====
+    // 充值审核通过（事务：更新状态 + 加余额 + 流水）
     if (action === "approve-deposit") {
+      const [deposit] = await db.select().from(deposits).where(eq(deposits.id, body.id));
+      if (!deposit) {
+        return errorResponse(new Error("充值记录不存在"));
+      }
+      if (deposit.status !== "pending") {
+        return errorResponse(new Error("该充值已处理"));
+      }
+
       await db.transaction(async (tx) => {
-        const [deposit] = await tx
-          .select()
-          .from(deposits)
-          .where(eq(deposits.id, body.id!))
-          .for("update");
-
-        if (!deposit) {
-          throw new Error("充值记录不存在");
-        }
-        if (deposit.status !== "pending") {
-          throw new Error("该充值已处理");
-        }
-
-        // 更新状态
         await tx
           .update(deposits)
           .set({ status: "approved", reviewedBy: admin.id, reviewedAt: new Date() })
-          .where(eq(deposits.id, body.id!));
+          .where(eq(deposits.id, body.id));
 
-        // 加余额（锁定行）
-        const [account] = await tx
-          .select()
-          .from(accounts)
-          .where(eq(accounts.userId, deposit.userId))
-          .for("update");
-
+        const [account] = await tx.select().from(accounts).where(eq(accounts.userId, deposit.userId)).for("update");
         if (account) {
-          const newBalance = Number(account.balance) + Number(deposit.amount);
-          await tx.update(accounts).set({ balance: String(newBalance) }).where(eq(accounts.userId, deposit.userId));
+          const newBalance = account.balance + deposit.amount;
+          await tx.update(accounts).set({ balance: newBalance }).where(eq(accounts.userId, deposit.userId));
 
-          // 记录流水
           await tx.insert(ledgerEntries).values({
             userId: deposit.userId,
-            amount: String(deposit.amount),
+            amount: deposit.amount,
             type: "deposit",
             refId: `deposit_${deposit.id}`,
-            balanceAfter: String(newBalance),
+            balanceAfter: newBalance,
             remark: `充值到账 ¥${deposit.amount}`,
           });
         }
-
-        // 发通知
-        await tx.insert(notifications).values({
-          userId: deposit.userId,
-          title: "充值到账通知",
-          content: `您的充值 ¥${deposit.amount} 已确认到账，余额已更新。`,
-          type: "success",
-        });
       });
+
+      // 发送通知
+      await sendNotification(
+        deposit.userId,
+        "充值到账通知",
+        `您的充值 ¥${deposit.amount} 已确认到账，余额已更新。`,
+        "success"
+      );
 
       return ok({ message: "充值已通过，积分已到账" });
     }
 
-    // ===== 充值拒绝 =====
+    // 拒绝充值
     if (action === "reject-deposit") {
       const [deposit] = await db.select().from(deposits).where(eq(deposits.id, body.id));
-
       await db
         .update(deposits)
-        .set({
-          status: "rejected",
-          reviewedBy: admin.id,
-          reviewedAt: new Date(),
-          remark: body.remark ?? "审核未通过",
-        })
+        .set({ status: "rejected", reviewedBy: admin.id, reviewedAt: new Date(), remark: body.remark ?? "审核未通过" })
         .where(eq(deposits.id, body.id));
 
       if (deposit) {
@@ -212,116 +199,89 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
       return ok({ message: "充值已拒绝" });
     }
 
-    // ===== 提现审核通过（事务：更新状态 + 记流水 + 发通知，balanceAfter 查实际余额） =====
+    // 提现审核通过（事务：更新状态 + 流水记录实际余额）
     if (action === "approve-withdraw") {
+      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, body.id));
+      if (!withdrawal) {
+        return errorResponse(new Error("提现记录不存在"));
+      }
+      if (withdrawal.status !== "pending") {
+        return errorResponse(new Error("该提现已处理"));
+      }
+
+      let balanceAfter = 0;
       await db.transaction(async (tx) => {
-        const [withdrawal] = await tx
-          .select()
-          .from(withdrawals)
-          .where(eq(withdrawals.id, body.id!))
-          .for("update");
-
-        if (!withdrawal) {
-          throw new Error("提现记录不存在");
-        }
-        if (withdrawal.status !== "pending") {
-          throw new Error("该提现已处理");
-        }
-
-        // 更新状态为已打款
         await tx
           .update(withdrawals)
           .set({ status: "paid", reviewedBy: admin.id, reviewedAt: new Date(), paidAt: new Date() })
-          .where(eq(withdrawals.id, body.id!));
+          .where(eq(withdrawals.id, body.id));
 
-        // 查询当前实际余额（修复4：不再写死为0）
-        const [account] = await tx
-          .select()
-          .from(accounts)
-          .where(eq(accounts.userId, withdrawal.userId));
+        // 查询实际余额（冻结后余额 = 当前余额，因为申请时已冻结）
+        const [account] = await tx.select().from(accounts).where(eq(accounts.userId, withdrawal.userId));
+        balanceAfter = account?.balance ?? 0;
 
-        const currentBalance = account ? Number(account.balance) : 0;
-
-        // 记录流水（balanceAfter 使用实际余额）
+        // 记录流水（balanceAfter 为实际余额，不再写死0）
         await tx.insert(ledgerEntries).values({
           userId: withdrawal.userId,
-          amount: String(-Number(withdrawal.amount)),
+          amount: -withdrawal.amount,
           type: "withdraw_paid",
           refId: `withdraw_${withdrawal.id}`,
-          balanceAfter: String(currentBalance),
+          balanceAfter,
           remark: `提现打款 ¥${withdrawal.actualAmount}（手续费 ¥${withdrawal.fee}）`,
         });
-
-        // 发通知
-        await tx.insert(notifications).values({
-          userId: withdrawal.userId,
-          title: "提现打款通知",
-          content: `您的提现申请 ¥${withdrawal.amount} 已处理打款，实际到账 ¥${withdrawal.actualAmount}（手续费 ¥${withdrawal.fee}）。`,
-          type: "success",
-        });
       });
+
+      // 发送通知
+      await sendNotification(
+        withdrawal.userId,
+        "提现打款通知",
+        `您的提现申请 ¥${withdrawal.amount} 已处理打款，实际到账 ¥${withdrawal.actualAmount}（手续费 ¥${withdrawal.fee}）。`,
+        "success"
+      );
 
       return ok({ message: "提现已放行打款" });
     }
 
-    // ===== 提现拒绝（事务：退回余额 + 记流水 + 更新状态 + 发通知） =====
+    // 拒绝提现（事务：退回余额 + 流水 + 更新状态）
     if (action === "reject-withdraw") {
+      const [withdrawal] = await db.select().from(withdrawals).where(eq(withdrawals.id, body.id));
+      if (!withdrawal) {
+        return errorResponse(new Error("提现记录不存在"));
+      }
+      if (withdrawal.status !== "pending") {
+        return errorResponse(new Error("该提现已处理"));
+      }
+
       await db.transaction(async (tx) => {
-        const [withdrawal] = await tx
-          .select()
-          .from(withdrawals)
-          .where(eq(withdrawals.id, body.id!))
-          .for("update");
-
-        if (!withdrawal) {
-          throw new Error("提现记录不存在");
-        }
-        if (withdrawal.status !== "pending") {
-          throw new Error("该提现已处理");
-        }
-
-        // 退回余额（锁定行）
-        const [account] = await tx
-          .select()
-          .from(accounts)
-          .where(eq(accounts.userId, withdrawal.userId))
-          .for("update");
-
-        let newBalance = 0;
+        // 退回余额（锁定行防止并发）
+        const [account] = await tx.select().from(accounts).where(eq(accounts.userId, withdrawal.userId)).for("update");
         if (account) {
-          newBalance = Number(account.balance) + Number(withdrawal.amount);
-          await tx.update(accounts).set({ balance: String(newBalance) }).where(eq(accounts.userId, withdrawal.userId));
+          const newBalance = account.balance + withdrawal.amount;
+          await tx.update(accounts).set({ balance: newBalance }).where(eq(accounts.userId, withdrawal.userId));
+
+          await tx.insert(ledgerEntries).values({
+            userId: withdrawal.userId,
+            amount: withdrawal.amount,
+            type: "withdraw_refund",
+            refId: `withdraw_${withdrawal.id}`,
+            balanceAfter: newBalance,
+            remark: `提现驳回，退回 ¥${withdrawal.amount}`,
+          });
         }
 
-        // 记录流水
-        await tx.insert(ledgerEntries).values({
-          userId: withdrawal.userId,
-          amount: String(withdrawal.amount),
-          type: "withdraw_refund",
-          refId: `withdraw_${withdrawal.id}`,
-          balanceAfter: String(newBalance),
-          remark: `提现驳回，退回 ¥${withdrawal.amount}`,
-        });
-
-        // 更新状态
         await tx
           .update(withdrawals)
-          .set({
-            status: "rejected",
-            reviewedBy: admin.id,
-            reviewedAt: new Date(),
-            remark: body.remark ?? "审核未通过",
-          })
-          .where(eq(withdrawals.id, body.id!));
-
-        // 发通知
-        await tx.insert(notifications).values({
-          userId: withdrawal.userId,
-          title: "提现审核未通过",
-          content: `您的提现申请 ¥${withdrawal.amount} 审核未通过，余额已退回。原因：${body.remark ?? "审核未通过"}`,
-          type: "warning",
-        });
+          .set({ status: "rejected", reviewedBy: admin.id, reviewedAt: new Date(), remark: body.remark ?? "审核未通过" })
+          .where(eq(withdrawals.id, body.id));
       });
+
+      // 发送通知
+      await sendNotification(
+        withdrawal.userId,
+        "提现审核未通过",
+        `您的提现申请 ¥${withdrawal.amount} 审核未通过，余额已退回。原因：${body.remark ?? "审核未通过"}`,
+        "warning"
+      );
 
       return ok({ message: "提现已拒绝，余额已退回" });
     }

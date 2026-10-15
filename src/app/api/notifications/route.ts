@@ -6,9 +6,9 @@ import { errorResponse, ok, requireUser } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 /** 获取通知列表 */
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    const user = await requireUser(req);
+    const user = await requireUser();
 
     const list = await db
       .select()
@@ -25,10 +25,10 @@ export async function GET(req: Request) {
   }
 }
 
-/** 标记已读（单条或全部） */
+/** 标记已读 */
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(req);
+    const user = await requireUser();
     const body = (await req.json().catch(() => ({}))) as { id?: number; all?: boolean };
 
     if (body.all) {

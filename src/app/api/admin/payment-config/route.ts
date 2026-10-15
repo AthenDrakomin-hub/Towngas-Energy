@@ -44,7 +44,6 @@ export async function POST(req: Request) {
       if (!CONFIG_KEYS.includes(key)) continue;
       const fullKey = `payment.${key}`;
 
-      // upsert
       const existing = await db.select().from(platformConfig).where(eq(platformConfig.key, fullKey));
       if (existing.length > 0) {
         await db

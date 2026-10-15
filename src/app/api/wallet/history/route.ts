@@ -1,14 +1,14 @@
-import { eq, desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { deposits, withdrawals } from "@/db/schema";
 import { errorResponse, ok, requireUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-/** 获取当前用户的充值/提现记录 */
-export async function GET(req: Request) {
+/** 充值提现记录 */
+export async function GET() {
   try {
-    const user = await requireUser(req);
+    const user = await requireUser();
 
     const depositList = await db
       .select()
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
       .orderBy(desc(deposits.createdAt))
       .limit(50);
 
-    const withdrawalList = await db
+    const withdrawList = await db
       .select()
       .from(withdrawals)
       .where(eq(withdrawals.userId, user.id))
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
 
     return ok({
       deposits: depositList,
-      withdrawals: withdrawalList,
+      withdrawals: withdrawList,
     });
   } catch (err) {
     return errorResponse(err);

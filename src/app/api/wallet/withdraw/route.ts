@@ -1,4 +1,4 @@
-import { eq, sql, and, gte } from "drizzle-orm";
+import { eq, sql, and, gte, lte } from "drizzle-orm";
 import { db } from "@/db";
 import { accounts, withdrawals, ledgerEntries, users, notifications } from "@/db/schema";
 import { errorResponse, ok, requireUser } from "@/lib/auth";
@@ -11,28 +11,33 @@ const RISK_RULES = {
   dailyWithdrawLimit: 5000,
   maxSingleWithdraw: 5000,
   minWithdraw: 50,
-  largeWithdrawThreshold: 10000,
-  frequentWithdrawPerHour: 3,
-  newUserWithdrawDiscount: 0.5,
-  newUserDays: 7,
+  // AML 规则
+  largeWithdrawThreshold: 10000, // 单笔大额提现阈值
+  dailyLargeWithdrawAlert: 20000, // 单日大额告警阈值
+  frequentWithdrawPerHour: 3, // 每小时提现次数限制
+  newUserWithdrawDiscount: 0.5, // 新用户提现限额折扣
+  newUserDays: 7, // 新用户定义天数
 };
 
+/** 发送通知辅助函数 */
 async function sendNotification(
   userId: number,
   title: string,
   content: string,
   type: "info" | "success" | "warning" | "error" = "info"
 ) {
-  await db.insert(notifications).values({ userId, title, content, type });
+  await db.insert(notifications).values({
+    userId,
+    title,
+    content,
+    type,
+  });
 }
 
-/**
- * 提现申请
- * 风控校验在事务外（只读），资金操作（冻结余额+创建记录+记流水）在事务内原子执行
- */
+/** 提现申请 */
 export async function POST(req: Request) {
   try {
-    const user = await requireUser(req);
+    const user = await requireUser();
     const body = (await req.json().catch(() => ({}))) as {
       amount?: number;
       withdrawAccount?: string;
@@ -44,6 +49,25 @@ export async function POST(req: Request) {
     if (!body.amount || body.amount < RISK_RULES.minWithdraw) {
       return errorResponse(new Error(`最低提现金额为 ${RISK_RULES.minWithdraw} 元`));
     }
+
+    // 新用户限额折扣
+    const [userInfo] = await db
+      .select({ createdAt: users.createdAt })
+      .from(users)
+      .where(eq(users.id, user.id));
+
+    let maxSingle = RISK_RULES.maxSingleWithdraw;
+    if (userInfo?.createdAt) {
+      const daysSinceRegister = (Date.now() - new Date(userInfo.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceRegister < RISK_RULES.newUserDays) {
+        maxSingle = Math.floor(maxSingle * RISK_RULES.newUserWithdrawDiscount);
+      }
+    }
+
+    if (body.amount > maxSingle) {
+      return errorResponse(new Error(`单笔提现不能超过 ¥${maxSingle}（新用户限额）`));
+    }
+
     if (!body.withdrawAccount?.trim()) {
       return errorResponse(new Error("请填写提现账户"));
     }
@@ -51,38 +75,25 @@ export async function POST(req: Request) {
       return errorResponse(new Error("请填写收款人姓名"));
     }
 
-    // ===== 风控校验（只读，事务外） =====
-    const [userInfo] = await db
-      .select({ createdAt: users.createdAt })
-      .from(users)
-      .where(eq(users.id, user.id));
-
-    // 新用户限额折扣
-    let maxSingle = RISK_RULES.maxSingleWithdraw;
+    // ===== 风控校验 1：新用户冷静期 =====
     if (userInfo?.createdAt) {
-      const daysSinceRegister =
-        (Date.now() - new Date(userInfo.createdAt).getTime()) / (1000 * 60 * 60 * 24);
-      if (daysSinceRegister < RISK_RULES.newUserDays) {
-        maxSingle = Math.floor(maxSingle * RISK_RULES.newUserWithdrawDiscount);
-      }
-    }
-    if (body.amount > maxSingle) {
-      return errorResponse(new Error(`单笔提现不能超过 ¥${maxSingle}（新用户限额）`));
-    }
-
-    // 新用户冷静期
-    if (userInfo?.createdAt) {
-      const hoursSinceRegister =
-        (Date.now() - new Date(userInfo.createdAt).getTime()) / (1000 * 60 * 60);
+      const hoursSinceRegister = (Date.now() - new Date(userInfo.createdAt).getTime()) / (1000 * 60 * 60);
       if (hoursSinceRegister < RISK_RULES.newUserCooldownHours) {
         const remaining = Math.ceil(RISK_RULES.newUserCooldownHours - hoursSinceRegister);
-        return errorResponse(
-          new Error(`新用户注册 ${RISK_RULES.newUserCooldownHours} 小时内不能提现，还需等待 ${remaining} 小时`)
-        );
+        return errorResponse(new Error(`新用户注册 ${RISK_RULES.newUserCooldownHours} 小时内不能提现，还需等待 ${remaining} 小时`));
       }
     }
 
-    // 每日提现限额
+    // ===== 检查余额 =====
+    const [account] = await db.select().from(accounts).where(eq(accounts.userId, user.id));
+    if (!account) {
+      return errorResponse(new Error("账户不存在"));
+    }
+    if (account.balance < body.amount) {
+      return errorResponse(new Error("余额不足"));
+    }
+
+    // ===== 风控校验 2：每日提现限额 =====
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const [dailyStats] = await db
@@ -92,18 +103,17 @@ export async function POST(req: Request) {
         and(
           eq(withdrawals.userId, user.id),
           gte(withdrawals.createdAt, today),
-          sql`status != 'rejected'`
-        )
+          sql`status != 'rejected'`,
+        ),
       );
+
     const todayWithdrawn = Number(dailyStats?.total ?? 0);
     if (todayWithdrawn + body.amount > RISK_RULES.dailyWithdrawLimit) {
       const remaining = RISK_RULES.dailyWithdrawLimit - todayWithdrawn;
-      return errorResponse(
-        new Error(`今日已提现 ¥${todayWithdrawn}，每日上限 ¥${RISK_RULES.dailyWithdrawLimit}，今日还可提现 ¥${remaining}`)
-      );
+      return errorResponse(new Error(`今日已提现 ¥${todayWithdrawn}，每日上限 ¥${RISK_RULES.dailyWithdrawLimit}，今日还可提现 ¥${remaining}`));
     }
 
-    // 频繁提现检测
+    // ===== 风控校验 3：频繁提现检测 =====
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const [hourlyStats] = await db
       .select({ count: sql<number>`count(*)::int` })
@@ -112,72 +122,69 @@ export async function POST(req: Request) {
         and(
           eq(withdrawals.userId, user.id),
           gte(withdrawals.createdAt, oneHourAgo),
-          sql`status != 'rejected'`
-        )
+          sql`status != 'rejected'`,
+        ),
       );
+
     if ((hourlyStats?.count ?? 0) >= RISK_RULES.frequentWithdrawPerHour) {
-      return errorResponse(
-        new Error(`1 小时内提现申请已达 ${RISK_RULES.frequentWithdrawPerHour} 次，请稍后再试`)
-      );
+      return errorResponse(new Error(`1 小时内提现申请已达 ${RISK_RULES.frequentWithdrawPerHour} 次，请稍后再试`));
     }
 
-    // ===== 资金操作（事务内原子执行） =====
+    // ===== 计算手续费 5% =====
     const amount = Math.floor(body.amount);
     const fee = Math.floor(amount * 0.05);
     const actualAmount = amount - fee;
+
+    // ===== 大额交易标记 =====
     const isLargeAmount = amount >= RISK_RULES.largeWithdrawThreshold;
 
-    const result = await db.transaction(async (tx) => {
-      // 锁定账户行（SELECT FOR UPDATE 语义，防止并发超提）
-      const [account] = await tx
+    // ===== 冻结余额（事务：扣余额 + 创建提现记录 + 流水，原子操作） =====
+    const newBalance = account.balance - amount;
+
+    const [withdrawal] = await db.transaction(async (tx) => {
+      // 锁定账户行，防止并发提现
+      const [lockedAccount] = await tx
         .select()
         .from(accounts)
         .where(eq(accounts.userId, user.id))
         .for("update");
 
-      if (!account) {
-        throw new Error("账户不存在");
-      }
-      if (Number(account.balance) < amount) {
+      if (!lockedAccount || lockedAccount.balance < amount) {
         throw new Error("余额不足");
       }
 
-      // 冻结余额
-      const newBalance = Number(account.balance) - amount;
-      await tx.update(accounts).set({ balance: String(newBalance) }).where(eq(accounts.userId, user.id));
+      await tx.update(accounts).set({ balance: newBalance }).where(eq(accounts.userId, user.id));
 
-      // 创建提现记录
-      const [withdrawal] = await tx
+      const [wd] = await tx
         .insert(withdrawals)
         .values({
           userId: user.id,
-          amount: String(amount),
-          fee: String(fee),
-          actualAmount: String(actualAmount),
-          withdrawAccount: body.withdrawAccount!.trim(),
-          withdrawName: body.withdrawName!.trim(),
+          amount,
+          fee,
+          actualAmount,
+          withdrawAccount: body.withdrawAccount.trim(),
+          withdrawName: body.withdrawName.trim(),
           remark: body.remark?.slice(0, 200) + (isLargeAmount ? " [大额交易]" : ""),
           status: "pending",
         })
         .returning();
 
-      // 记录流水
       await tx.insert(ledgerEntries).values({
         userId: user.id,
-        amount: String(-amount),
+        amount: -amount,
         type: "withdraw_freeze",
-        refId: `withdraw_${withdrawal.id}`,
-        balanceAfter: String(newBalance),
+        refId: `withdraw_${wd.id}`,
+        balanceAfter: newBalance,
         remark: `提现申请冻结 ¥${amount}（手续费 ¥${fee}）${isLargeAmount ? " [大额交易]" : ""}`,
       });
 
-      return { withdrawal, newBalance };
+      return [wd];
     });
 
-    // 大额交易告警（事务外，不影响主流程）
+    // ===== 大额交易告警通知管理员 =====
     if (isLargeAmount) {
       await sendNotification(
-        1,
+        1, // 管理员 ID
         "⚠️ 大额提现告警",
         `用户 ${user.username} 申请提现 ¥${amount}，请及时审核。`,
         "warning"
@@ -185,12 +192,12 @@ export async function POST(req: Request) {
     }
 
     return ok({
-      id: result.withdrawal.id,
-      amount: result.withdrawal.amount,
-      fee: result.withdrawal.fee,
-      actualAmount: result.withdrawal.actualAmount,
-      status: result.withdrawal.status,
-      createdAt: result.withdrawal.createdAt,
+      id: withdrawal.id,
+      amount: withdrawal.amount,
+      fee: withdrawal.fee,
+      actualAmount: withdrawal.actualAmount,
+      status: withdrawal.status,
+      createdAt: withdrawal.createdAt,
       message: isLargeAmount
         ? "大额提现申请已提交，将进行二次审核"
         : "提现申请已提交，预计 1-24 小时内到账",

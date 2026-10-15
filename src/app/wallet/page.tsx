@@ -1,204 +1,133 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/display/Card";
 import { Button } from "@/components/ui/form/Button";
-import { Input } from "@/components/ui/form/Input";
 import { fmtInt } from "@/lib/format";
-
-export const dynamic = "force-dynamic";
-
-/** 客户端安全获取认证 headers */
-function getAuthHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 type Tab = "deposit" | "withdraw" | "history";
 
-const DEPOSIT_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: "审核中", color: "bg-yellow-100 text-yellow-700" },
-  approved: { label: "已到账", color: "bg-green-100 text-green-700" },
-  rejected: { label: "已拒绝", color: "bg-red-100 text-red-700" },
-};
-
-const WITHDRAW_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: "审核中", color: "bg-yellow-100 text-yellow-700" },
-  paid: { label: "已打款", color: "bg-green-100 text-green-700" },
-  rejected: { label: "已拒绝", color: "bg-red-100 text-red-700" },
-};
-
 export default function WalletPage() {
   const [tab, setTab] = useState<Tab>("deposit");
-  const queryClient = useQueryClient();
-  const [depositAmount, setDepositAmount] = useState(100);
-  const [depositProof, setDepositProof] = useState("");
-  const [withdrawAmount, setWithdrawAmount] = useState(100);
-  const [withdrawAccount, setWithdrawAccount] = useState("");
-  const [withdrawName, setWithdrawName] = useState("");
-  const [message, setMessage] = useState("");
 
-  const historyQuery = useQuery({
-    queryKey: ["wallet-history"],
-    queryFn: async () => (await fetch("/api/wallet/history", { headers: getAuthHeaders() })).json(),
-  });
-
-  const deposits = historyQuery.data?.data?.deposits ?? [];
-  const withdrawals = historyQuery.data?.data?.withdrawals ?? [];
-
-  const depositMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/wallet/deposit", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ amount: depositAmount, paymentProof: depositProof }),
-      });
-      return res.json();
+  // 充值方式（后台可配置，这里先写默认值）
+  const depositMethods = [
+    {
+      id: "usdt_trc20",
+      name: "USDT（TRC20）",
+      icon: "🪙",
+      desc: "Tron 网络，到账快，手续费低",
+      minAmount: 10,
     },
-    onSuccess: (json) => {
-      if (json.ok) {
-        setMessage("✅ 充值申请已提交，等待审核");
-        queryClient.invalidateQueries({ queryKey: ["wallet-history"] });
-        setTab("history");
-      } else {
-        setMessage(json.message || "提交失败");
-      }
+    {
+      id: "bank_transfer",
+      name: "银行电汇",
+      icon: "🏦",
+      desc: "中银香港 / 内地中行，跨境汇款",
+      minAmount: 100,
     },
-  });
-
-  const withdrawMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/wallet/withdraw", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ amount: withdrawAmount, withdrawAccount, withdrawName }),
-      });
-      return res.json();
-    },
-    onSuccess: (json) => {
-      if (json.ok) {
-        setMessage("✅ " + json.data.message);
-        queryClient.invalidateQueries({ queryKey: ["wallet-history"] });
-        setTab("history");
-      } else {
-        setMessage(json.message || "提交失败");
-      }
-    },
-  });
+  ];
 
   return (
-    <div className="mx-auto max-w-2xl p-4 space-y-4">
-      <h1 className="text-xl font-bold text-gray-800">我的钱包</h1>
+    <div className="mx-auto max-w-2xl space-y-4 p-4">
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-gray-800">我的钱包</h1>
+      </div>
 
-      {message && (
-        <div className="rounded-lg bg-gray-50 px-4 py-2 text-sm">{message}</div>
-      )}
-
-      <div className="flex gap-2">
-        {(["deposit", "withdraw", "history"] as Tab[]).map((t) => (
-          <Button
-            key={t}
-            size="sm"
-            variant={tab === t ? "primary" : "secondary"}
-            onClick={() => setTab(t)}
+      {/* Tab 切换 */}
+      <div className="flex gap-2 border-b border-gray-200">
+        {[
+          { key: "deposit", label: "充值" },
+          { key: "withdraw", label: "提现" },
+          { key: "history", label: "记录" },
+        ].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key as Tab)}
+            className={`px-4 py-2 text-sm font-medium transition-colors ${
+              tab === t.key ? "border-b-2 border-primary text-primary" : "text-gray-500 hover:text-gray-700"
+            }`}
           >
-            {t === "deposit" ? "充值" : t === "withdraw" ? "提现" : "记录"}
-          </Button>
+            {t.label}
+          </button>
         ))}
       </div>
 
+      {/* 充值页面 - 展示充值方式 */}
       {tab === "deposit" && (
-        <Card title="手动充值" status="live">
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">充值金额</label>
-              <Input
-                type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(Number(e.target.value))}
-              />
+        <div className="space-y-4">
+          <div className="rounded-lg bg-blue-50 p-4 text-sm text-blue-700">
+            <div className="font-medium">选择充值方式</div>
+            <div className="mt-1 text-xs text-blue-600">
+              选择下方充值方式后，请联系客服获取收款账户信息，转账完成后客服确认到账。
             </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">转账凭证号</label>
-              <Input
-                value={depositProof}
-                onChange={(e) => setDepositProof(e.target.value)}
-                placeholder="转账后填写凭证号"
-              />
-            </div>
-            <Button onClick={() => depositMutation.mutate()} disabled={depositMutation.isPending}>
-              {depositMutation.isPending ? "提交中..." : "提交充值申请"}
-            </Button>
           </div>
-        </Card>
+
+          {depositMethods.map((method) => (
+            <Card key={method.id}>
+              <div className="flex items-center gap-4">
+                <div className="text-3xl">{method.icon}</div>
+                <div className="flex-1">
+                  <div className="font-medium text-gray-800">{method.name}</div>
+                  <div className="mt-1 text-xs text-gray-500">{method.desc}</div>
+                  <div className="mt-1 text-xs text-gray-400">最低充值 ¥{method.minAmount}</div>
+                </div>
+                <Button size="sm" variant="primary" onClick={() => window.open("https://kefu.lexiangim.com", "_blank")}>
+                  联系客服充值
+                </Button>
+              </div>
+            </Card>
+          ))}
+        </div>
       )}
 
+      {/* 提现页面 - 申请提现 */}
       {tab === "withdraw" && (
-        <Card title="申请提现" status="live">
-          <div className="space-y-3">
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">提现金额（最低50元，手续费5%）</label>
-              <Input
-                type="number"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(Number(e.target.value))}
-              />
+        <div className="space-y-4">
+          <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-700">
+            <div className="font-medium">提现说明</div>
+            <div className="mt-1 text-xs text-amber-600">
+              提现申请提交后，管理员将在 1-24 小时内审核处理，审核通过后人工打款到您指定的账户。
             </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">收款账户</label>
-              <Input
-                value={withdrawAccount}
-                onChange={(e) => setWithdrawAccount(e.target.value)}
-                placeholder="银行卡号/USDT地址"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-gray-500">收款人姓名</label>
-              <Input
-                value={withdrawName}
-                onChange={(e) => setWithdrawName(e.target.value)}
-                placeholder="收款人姓名"
-              />
-            </div>
-            <Button onClick={() => withdrawMutation.mutate()} disabled={withdrawMutation.isPending}>
-              {withdrawMutation.isPending ? "提交中..." : "提交提现申请"}
-            </Button>
           </div>
-        </Card>
+
+          <Card title="申请提现">
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">提现金额（元）</label>
+                <input
+                  type="number"
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                  placeholder="最低提现 ¥50"
+                />
+                <p className="mt-1 text-xs text-gray-400">手续费 5%，最低提现 ¥50</p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs text-gray-500">提现账户信息</label>
+                <textarea
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm"
+                  rows={3}
+                  placeholder="请输入您的 USDT 地址或银行账户信息"
+                />
+              </div>
+
+              <Button variant="primary" className="w-full">
+                提交提现申请
+              </Button>
+
+              <div className="text-center text-xs text-gray-400">
+                遇到问题？<a href="#" className="text-primary hover:underline">联系客服</a>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
 
+      {/* 记录页面 - 占位 */}
       {tab === "history" && (
-        <Card title="交易记录" status="live">
-          <div className="space-y-2">
-            <h3 className="text-sm font-semibold text-gray-700">充值记录</h3>
-            {deposits.length === 0 && <p className="text-sm text-gray-400">暂无充值记录</p>}
-            {deposits.map((d: any) => (
-              <div key={d.id} className="flex items-center justify-between border-b border-gray-50 py-2">
-                <div>
-                  <div className="text-sm font-medium">+¥{fmtInt(d.amount)}</div>
-                  <div className="text-xs text-gray-400">{new Date(d.createdAt).toLocaleString()}</div>
-                </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${DEPOSIT_STATUS[d.status]?.color || "bg-gray-100"}`}>
-                  {DEPOSIT_STATUS[d.status]?.label || d.status}
-                </span>
-              </div>
-            ))}
-            <h3 className="pt-4 text-sm font-semibold text-gray-700">提现记录</h3>
-            {withdrawals.length === 0 && <p className="text-sm text-gray-400">暂无提现记录</p>}
-            {withdrawals.map((w: any) => (
-              <div key={w.id} className="flex items-center justify-between border-b border-gray-50 py-2">
-                <div>
-                  <div className="text-sm font-medium text-red-600">-¥{fmtInt(w.amount)}</div>
-                  <div className="text-xs text-gray-400">{new Date(w.createdAt).toLocaleString()}</div>
-                </div>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${WITHDRAW_STATUS[w.status]?.color || "bg-gray-100"}`}>
-                  {WITHDRAW_STATUS[w.status]?.label || w.status}
-                </span>
-              </div>
-            ))}
-          </div>
+        <Card>
+          <p className="py-8 text-center text-gray-400">暂无交易记录</p>
         </Card>
       )}
     </div>
