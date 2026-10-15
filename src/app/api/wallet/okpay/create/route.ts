@@ -31,7 +31,7 @@ export async function POST(req: Request) {
       .insert(deposits)
       .values({
         userId: user.id,
-        amount: String(amount),
+        amount,
         paymentMethod: "okpay_usdt",
         status: "pending",
         remark: `Okpay 订单号: ${orderId}`,
