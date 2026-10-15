@@ -37,3 +37,11 @@ yarn-error.log*
 *.backup
 *.bak
 *-backup/
+
+# 部署配置（含敏感信息，不提交）
+docker-compose.yml
+docker-compose.*.yml
+
+# 临时脚本
+deploy-fix.sh
+*.tmp.sh
