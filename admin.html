@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>港华智慧能源 - 客服工作台</title>
+<style>
+:root{
+  --primary:#1a73e8;--primary-light:#e8f0fe;--bg:#f5f6f8;--panel:#fff;
+  --border:#e4e6eb;--text:#1a1a2e;--text-secondary:#6b7280;--text-muted:#9ca3af;
+  --online:#22c55e;--offline:#9ca3af;--unread:#ef4444;--hover:#f3f4f6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;font-size:14px}
+.app{display:flex;height:100vh}
+
+/* ===== 左侧会话列表 ===== */
+.sidebar{width:280px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);background:var(--primary);color:#fff}
+.agent-info{display:flex;align-items:center;gap:10px}
+.agent-avatar{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:16px}
+.agent-name{font-weight:600;font-size:15px}
+.agent-status{font-size:12px;opacity:.85;display:flex;align-items:center;gap:4px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--online);display:inline-block}
+.search-box{padding:10px 12px;border-bottom:1px solid var(--border)}
+.search-box input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;font-size:13px;outline:none;background:var(--bg)}
+.search-box input:focus{border-color:var(--primary)}
+.session-list{flex:1;overflow-y:auto}
+.session-item{padding:12px 14px;display:flex;gap:10px;cursor:pointer;border-bottom:1px solid #f3f4f6;transition:background .15s;position:relative}
+.session-item:hover{background:var(--hover)}
+.session-item.active{background:var(--primary-light)}
+.session-avatar{width:42px;height:42px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:16px;flex-shrink:0;position:relative}
+.session-avatar .online-indicator{position:absolute;bottom:0;right:0;width:12px;height:12px;border-radius:50%;border:2px solid var(--panel)}
+.session-avatar .online-indicator.online{background:var(--online)}
+.session-avatar .online-indicator.offline{background:var(--offline)}
+.session-content{flex:1;min-width:0}
+.session-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.session-nick{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-time{font-size:11px;color:var(--text-muted);flex-shrink:0;margin-left:8px}
+.session-preview{font-size:12px;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.session-unread{position:absolute;top:10px;right:12px;min-width:18px;height:18px;border-radius:9px;background:var(--unread);color:#fff;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 5px;font-weight:600}
+.empty-sessions{padding:40px 20px;text-align:center;color:var(--text-muted);font-size:13px}
+
+/* ===== 中间聊天区 ===== */
+.chat-area{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--panel)}
+.chat-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--panel)}
+.chat-visitor{display:flex;align-items:center;gap:10px}
+.chat-visitor-avatar{width:36px;height:36px;border-radius:50%;background:var(--primary-light);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:600}
+.chat-visitor-name{font-weight:600;font-size:15px}
+.chat-visitor-status{font-size:12px;color:var(--text-secondary)}
+.chat-actions{display:flex;gap:8px}
+.chat-actions button{padding:6px 14px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:13px;color:var(--text-secondary);transition:all .15s}
+.chat-actions button:hover{border-color:var(--primary);color:var(--primary)}
+.messages{flex:1;overflow-y:auto;padding:20px;background:var(--bg)}
+.msg{display:flex;margin-bottom:16px;max-width:75%}
+.msg.left{align-self:flex-start}
+.msg.right{align-self:flex-end;margin-left:auto;flex-direction:row-reverse}
+.msg-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;margin:0 8px}
+.msg.left .msg-avatar{background:var(--primary);color:#fff}
+.msg.right .msg-avatar{background:#e8e8ed;color:var(--text-secondary)}
+.msg-bubble{padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5;word-break:break-word;position:relative}
+.msg.left .msg-bubble{background:#fff;border:1px solid var(--border);border-top-left-radius:4px}
+.msg.right .msg-bubble{background:var(--primary);color:#fff;border-top-right-radius:4px}
+.msg-time{font-size:11px;color:var(--text-muted);margin-top:4px;text-align:center}
+.msg.left .msg-time{text-align:left}
+.msg.right .msg-time{text-align:right}
+.chat-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted)}
+.chat-empty-icon{font-size:48px;margin-bottom:12px;opacity:.3}
+.chat-empty-text{font-size:14px}
+
+/* ===== 输入区 ===== */
+.input-area{border-top:1px solid var(--border);padding:12px 20px;background:var(--panel)}
+.quick-bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.quick-tag{padding:4px 10px;border:1px solid var(--border);border-radius:14px;font-size:12px;cursor:pointer;color:var(--text-secondary);background:#fff;transition:all .15s}
+.quick-tag:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+.input-row{display:flex;gap:10px;align-items:flex-end}
+.input-row textarea{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:10px;font-size:14px;resize:none;outline:none;font-family:inherit;min-height:44px;max-height:120px;line-height:1.5}
+.input-row textarea:focus{border-color:var(--primary)}
+.send-btn{padding:10px 24px;background:var(--primary);color:#fff;border:none;border-radius:10px;cursor:pointer;font-size:14px;font-weight:500;transition:opacity .15s;white-space:nowrap}
+.send-btn:hover{opacity:.9}
+.send-btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* ===== 右侧快捷回复面板 ===== */
+.reply-panel{width:260px;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;transition:width .2s}
+.reply-panel.collapsed{width:0;overflow:hidden;border-left:none}
+.reply-header{padding:14px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;display:flex;justify-content:space-between;align-items:center}
+.reply-close{cursor:pointer;color:var(--text-muted);font-size:18px;line-height:1}
+.reply-cats{display:flex;gap:4px;padding:8px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.reply-cat{padding:4px 10px;border-radius:12px;font-size:12px;cursor:pointer;color:var(--text-secondary);background:var(--bg);transition:all .15s;white-space:nowrap}
+.reply-cat.active{background:var(--primary);color:#fff}
+.reply-list{flex:1;overflow-y:auto;padding:8px}
+.reply-item{padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px;font-size:13px;color:var(--text);line-height:1.4;transition:background .15s;border:1px solid transparent}
+.reply-item:hover{background:var(--primary-light);border-color:var(--primary)}
+.reply-item .reply-id{font-size:10px;color:var(--text-muted);margin-bottom:2px}
+
+/* ===== 登录遮罩 ===== */
+.login-mask{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:100}
+.login-box{background:#fff;padding:32px;border-radius:12px;width:360px;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.login-box h2{text-align:center;margin-bottom:24px;color:var(--primary)}
+.login-box input{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;font-size:14px;outline:none}
+.login-box input:focus{border-color:var(--primary)}
+.login-box button{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:15px;font-weight:500}
+.login-error{color:var(--unread);font-size:13px;text-align:center;margin-bottom:12px;min-height:18px}
+
+/* ===== 连接状态条 ===== */
+.conn-bar{position:fixed;bottom:0;left:0;right:0;padding:6px 20px;font-size:12px;text-align:center;z-index:50;display:none}
+.conn-bar.show{display:block}
+.conn-bar.connecting{background:#fef3c7;color:#92400e}
+.conn-bar.online{background:#d1fae5;color:#065f46}
+.conn-bar.offline{background:#fee2e2;color:#991b1b}
+
+/* ===== 滚动条 ===== */
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:3px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* ===== 折叠按钮 ===== */
+.toggle-reply{position:fixed;right:0;top:50%;transform:translateY(-50%);background:var(--primary);color:#fff;padding:8px 4px;border-radius:4px 0 0 4px;cursor:pointer;font-size:12px;z-index:10;writing-mode:vertical-rl}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- 左侧会话列表 -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="agent-info">
+        <div class="agent-avatar" id="agentAvatar">客</div>
+        <div>
+          <div class="agent-name" id="agentName">客服工作台</div>
+          <div class="agent-status"><span class="status-dot" id="statusDot"></span><span id="statusText">在线</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="搜索访客..." oninput="filterSessions()">
+    </div>
+    <div class="session-list" id="sessionList">
+      <div class="empty-sessions">加载中...</div>
+    </div>
+  </div>
+
+  <!-- 中间聊天区 -->
+  <div class="chat-area">
+    <div class="chat-header" id="chatHeader" style="display:none">
+      <div class="chat-visitor">
+        <div class="chat-visitor-avatar" id="chatAvatar">访</div>
+        <div>
+          <div class="chat-visitor-name" id="chatName">选择访客</div>
+          <div class="chat-visitor-status" id="chatStatus">--</div>
+        </div>
+      </div>
+      <div class="chat-actions">
+        <button onclick="toggleReplyPanel()">快捷回复</button>
+      </div>
+    </div>
+    <div class="messages" id="messages">
+      <div class="chat-empty">
+        <div class="chat-empty-icon">💬</div>
+        <div class="chat-empty-text">从左侧选择一个访客开始对话</div>
+      </div>
+    </div>
+    <div class="input-area" id="inputArea" style="display:none">
+      <div class="quick-bar" id="quickBar"></div>
+      <div class="input-row">
+        <textarea id="msgInput" placeholder="输入消息，Enter发送，Shift+Enter换行" onkeydown="handleKeydown(event)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">发送</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧快捷回复面板 -->
+  <div class="reply-panel" id="replyPanel">
+    <div class="reply-header">
+      <span>快捷回复</span>
+      <span class="reply-close" onclick="toggleReplyPanel()">×</span>
+    </div>
+    <div class="reply-cats" id="replyCats"></div>
+    <div class="reply-list" id="replyList"></div>
+  </div>
+</div>
+
+<!-- 登录遮罩 -->
+<div class="login-mask" id="loginMask" style="display:none">
+  <div class="login-box">
+    <h2>客服登录</h2>
+    <div class="login-error" id="loginError"></div>
+    <input type="text" id="loginUser" placeholder="客服账号">
+    <input type="password" id="loginPass" placeholder="密码">
+    <button onclick="doLogin()">登 录</button>
+  </div>
+</div>
+
+<!-- 连接状态条 -->
+<div class="conn-bar" id="connBar"></div>
+
+<!-- 客服账号配置（独立文件，不提交git） -->
+<script src="config-agent.js"></script>
+
+<script>
+/* ==================== 配置 ==================== */
+var API_BASE = 'https://kefu.lexiangim.com/api';
+var WS_URL = 'wss://kefu.lexiangim.com/im';
+var DEV_ID = 'kefu_agent_web_' + Math.random().toString(36).substr(2, 8);
+
+/* ==================== 全局状态 ==================== */
+var accessToken = null;
+var refreshToken = null;
+var tokenExpireTime = 0;
+var tokenRefreshTimer = null;
+var myId = null;
+var myName = null;
+var ws = null;
+var wsReconnectTimer = null;
+var wsReconnectCount = 0;
+var heartbeatTimer = null;
+var sessions = [];          // 好友列表
+var onlineUsers = {};       // 在线用户 {userId: [terminals]}
+var currentVisitorId = null;
+var currentVisitorName = null;
+var unreadMap = {};         // {visitorId: count}
+var lastMsgMap = {};        // {visitorId: {content, time}}
+var currentCategory = 'all';
+
+/* ==================== 快捷回复模板（41条） ==================== */
+var QUICK_REPLIES = [
+  {id:'HUMAN-01',cat:'人工',keywords:['人工','转人工','真人','客服'],reply:'正在为您转接人工客服，请稍候...'},
+  {id:'GREET-01',cat:'问候',keywords:['你好','您好','在吗','嗨','hello','hi'],reply:'您好，欢迎咨询港华智慧能源！我是客服小港，请问有什么可以帮您？'},
+  {id:'GREET-02',cat:'问候',keywords:['久等','等待','排队'],reply:'抱歉让您久等了，请问您遇到了什么问题？'},
+  {id:'GREET-03',cat:'问候',keywords:['打招呼','欢迎'],reply:'您好！很高兴为您服务，请描述您的问题，我会尽快为您处理。'},
+  {id:'AUTH-01',cat:'注册登录',keywords:['无法注册','注册失败','不能注册'],reply:'注册需满足：用户名3-20位字母/数字/下划线，密码至少6位且同时包含字母和数字。如仍无法注册，请提供您的用户名和报错截图。'},
+  {id:'AUTH-02',cat:'注册登录',keywords:['忘记密码','忘了密码','找回密码'],reply:'目前暂不支持自助找回密码，请提供注册手机号/邮箱，我们核实身份后为您重置。'},
+  {id:'AUTH-03',cat:'注册登录',keywords:['登录失败','登不上','无法登录'],reply:'请确认用户名和密码正确，注意区分大小写。连续失败5次将锁定15分钟，请稍后再试。'},
+  {id:'AUTH-04',cat:'注册登录',keywords:['账号被锁','锁定','被锁'],reply:'您的账号因登录失败次数过多已临时锁定，请15分钟后重试，或联系客服人工解锁。'},
+  {id:'KYC-01',cat:'实名认证',keywords:['如何认证','怎么认证','实名认证'],reply:'请进入「我的-实名认证」，填写真实姓名和身份证号提交，审核通常在1-2个工作日内完成。'},
+  {id:'KYC-02',cat:'实名认证',keywords:['认证失败','审核不通过'],reply:'实名认证失败通常因为：姓名与身份证号不匹配、信息填写有误。请核对后重新提交，如多次失败请联系人工审核。'},
+  {id:'KYC-03',cat:'实名认证',keywords:['认证中','审核中','正在审核'],reply:'您的实名认证正在审核中，请耐心等待，审核完成后会通过站内通知告知结果。'},
+  {id:'KYC-04',cat:'实名认证',keywords:['修改认证','变更认证','改实名'],reply:'实名认证一经提交不可自行修改，如需变更请联系客服并提供相关证明材料。'},
+  {id:'DEP-01',cat:'充值',keywords:['如何充值','怎么充值','充值方法'],reply:'进入「钱包-充值」，输入金额并上传支付凭证提交，审核通过后余额到账。最低充值金额以页面提示为准。'},
+  {id:'DEP-02',cat:'充值',keywords:['充值未到账','没到账','充值不到账'],reply:'充值审核一般在24小时内完成。如超过24小时未到账，请提供充值金额、支付凭证截图和充值时间，我们为您核查。'},
+  {id:'DEP-03',cat:'充值',keywords:['充值被拒','充值失败','充值不通过'],reply:'充值申请被拒可能因为：支付凭证不清晰、金额与凭证不符。请重新上传清晰的支付凭证后再次提交。'},
+  {id:'DEP-04',cat:'充值',keywords:['支持方式','支付方式','怎么付'],reply:'目前支持银行转账和指定渠道支付，具体以充值页面显示为准。请勿向个人账户转账，谨防诈骗。'},
+  {id:'WIT-01',cat:'提现',keywords:['如何提现','怎么提现','提现方法'],reply:'进入「钱包-提现」，输入金额和收款账户提交，需先完成实名认证。审核通过后1-3个工作日到账。'},
+  {id:'WIT-02',cat:'提现',keywords:['提现未到账','提现没到'],reply:'提现已提交后进入审核队列，审核通过后由财务打款。如超过3个工作日未到账，请提供提现单号，我们为您查询。'},
+  {id:'WIT-03',cat:'提现',keywords:['提现被拒','提现失败','提现不通过'],reply:'提现被拒常见原因：收款账户信息有误、未完成实名认证、账户存在风险。请根据拒绝原因调整后重新申请。'},
+  {id:'WIT-04',cat:'提现',keywords:['手续费','提现费'],reply:'提现手续费以页面显示为准，手续费从提现金额中扣除，实际到账=提现金额-手续费。'},
+  {id:'WIT-05',cat:'提现',keywords:['提现限额','限额','最多提多少'],reply:'单笔和每日提现有额度限制，具体以钱包页面提示为准。大额提现可能需要额外审核。'},
+  {id:'INV-01',cat:'投资产品',keywords:['产品咨询','有什么产品','项目'],reply:'您可以在「首页」查看当前在售能源项目，每个项目均有详细说明、预期收益和期限，投资前请仔细阅读项目条款。'},
+  {id:'INV-02',cat:'投资产品',keywords:['收益计算','怎么算收益','利率'],reply:'项目收益按页面公示的利率和期限计算，收益=本金×年化利率×投资天数/365。具体以项目合同为准。'},
+  {id:'INV-03',cat:'投资产品',keywords:['能否赎回','赎回','提前退出'],reply:'不同项目赎回规则不同，部分项目持有期满后可赎回，部分需到期自动回款。请查看项目详情中的「赎回规则」。'},
+  {id:'INV-04',cat:'投资产品',keywords:['项目风险','风险','保本吗'],reply:'投资有风险，过往业绩不代表未来收益。请根据自身风险承受能力理性投资，平台不承诺保本保息。'},
+  {id:'SEC-01',cat:'账户安全',keywords:['修改密码','改密码','换密码'],reply:'进入「我的-账户安全-修改密码」，输入原密码和新密码即可修改。建议密码包含字母+数字，定期更换。'},
+  {id:'SEC-02',cat:'账户安全',keywords:['账号被盗','被盗','异常登录','盗号'],reply:'如怀疑账号被盗，请立即修改密码并联系客服冻结账户，同时提供最近登录时间和异常操作记录，我们将协助排查。'},
+  {id:'SEC-03',cat:'账户安全',keywords:['注销','销户','删除账号'],reply:'账号注销需确保账户无余额、无在投项目、无未完成订单。请联系客服提交注销申请，审核通过后处理。'},
+  {id:'SEC-04',cat:'账户安全',keywords:['绑定信息','换绑手机','换邮箱'],reply:'手机号/邮箱绑定请在「我的-账户安全」中操作，更换绑定需验证原绑定信息。'},
+  {id:'SYS-01',cat:'平台通知',keywords:['收不到通知','没有通知','不提醒'],reply:'请检查手机通知权限是否开启，站内通知可在「消息中心」查看。如仍收不到请提供账号和通知类型。'},
+  {id:'SYS-02',cat:'平台通知',keywords:['系统维护','维护','升级'],reply:'平台维护期间部分功能可能暂停使用，维护结束后恢复正常。具体维护时间请关注公告。'},
+  {id:'SYS-03',cat:'平台通知',keywords:['报错','异常','出错','bug'],reply:'请提供报错截图、操作步骤和您的账号，我们会尽快排查并反馈处理结果。'},
+  {id:'COM-01',cat:'投诉建议',keywords:['投诉','我要投诉','不满意'],reply:'感谢您的反馈，我们已记录您的投诉内容，会在1-3个工作日内由专人跟进处理，请保持联系方式畅通。'},
+  {id:'COM-02',cat:'投诉建议',keywords:['建议','提建议','意见'],reply:'感谢您的宝贵建议！我们会提交给产品团队评估，如被采纳将在后续版本中体现。'},
+  {id:'COM-03',cat:'投诉建议',keywords:['处理进度','怎么样了','结果'],reply:'您的投诉/建议正在处理中，处理完成后会第一时间通知您，请耐心等待。'},
+  {id:'END-01',cat:'结束语',keywords:['谢谢','感谢','解决了'],reply:'感谢您的咨询，祝您生活愉快！如有其他问题欢迎随时联系我们。'},
+  {id:'END-02',cat:'结束语',keywords:['没解决','不满意','还有问题'],reply:'抱歉未能完全解决您的问题，我们会持续跟进，有进展会第一时间通知您。'},
+  {id:'END-03',cat:'结束语',keywords:['评价','打分','满意吗'],reply:'如您对本次服务满意，欢迎对我们的服务进行评价，您的反馈是我们进步的动力！'}
+];
+
+/* ==================== 快捷问题（输入框上方） ==================== */
+var QUICK_QUESTIONS = ['如何充值','如何提现','实名认证','修改密码','联系人工','营业时间'];
+
+/* ==================== 初始化 ==================== */
+window.onload = function() {
+  initQuickBar();
+  initReplyPanel();
+  // 尝试从缓存恢复token
+  var cachedToken = localStorage.getItem('kefu_agent_token');
+  var cachedRefresh = localStorage.getItem('kefu_agent_refresh');
+  var cachedExpire = localStorage.getItem('kefu_agent_expire');
+  var cachedId = localStorage.getItem('kefu_agent_id');
+  var cachedName = localStorage.getItem('kefu_agent_name');
+  if (cachedToken && cachedRefresh && cachedExpire && Date.now() < parseInt(cachedExpire)) {
+    accessToken = cachedToken;
+    refreshToken = cachedRefresh;
+    tokenExpireTime = parseInt(cachedExpire);
+    myId = cachedId ? parseInt(cachedId) : null;
+    myName = cachedName || '客服';
+    startTokenRefresh();
+    afterLogin();
+  } else if (window.AGENT_CONFIG && AGENT_CONFIG.username && AGENT_CONFIG.password) {
+    // 从config-agent.js自动登录
+    autoLogin(AGENT_CONFIG.username, AGENT_CONFIG.password);
+  } else {
+    showLogin();
+  }
+};
+
+/* ==================== 登录 ==================== */
+function showLogin() {
+  document.getElementById('loginMask').style.display = 'flex';
+}
+
+function hideLogin() {
+  document.getElementById('loginMask').style.display = 'none';
+}
+
+async function autoLogin(user, pass) {
+  document.getElementById('loginError').textContent = '正在自动登录...';
+  showLogin();
+  try {
+    var res = await fetch(API_BASE + '/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({userName: user, password: pass})
+    });
+    var data = await res.json();
+    if (data.code !== 200) {
+      document.getElementById('loginError').textContent = data.msg || '登录失败';
+      return;
+    }
+    saveLoginInfo(data.data);
+    hideLogin();
+    afterLogin();
+  } catch (e) {
+    document.getElementById('loginError').textContent = '网络异常，请重试';
+    console.error('[客服] 自动登录失败', e);
+  }
+}
+
+async function doLogin() {
+  var user = document.getElementById('loginUser').value.trim();
+  var pass = document.getElementById('loginPass').value;
+  if (!user || !pass) {
+    document.getElementById('loginError').textContent = '请输入账号和密码';
+    return;
+  }
+  document.getElementById('loginError').textContent = '登录中...';
+  try {
+    var res = await fetch(API_BASE + '/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({userName: user, password: pass})
+    });
+    var data = await res.json();
+    if (data.code !== 200) {
+      document.getElementById('loginError').textContent = data.msg || '登录失败';
+      return;
+    }
+    saveLoginInfo(data.data);
+    hideLogin();
+    afterLogin();
+  } catch (e) {
+    document.getElementById('loginError').textContent = '网络异常，请重试';
+    console.error('[客服] 登录失败', e);
+  }
+}
+
+function saveLoginInfo(d) {
+  accessToken = d.accessToken;
+  refreshToken = d.refreshToken;
+  tokenExpireTime = Date.now() + (d.expireTime || 1800) * 1000;
+  myId = d.id || d.userId || d.uid || null;
+  myName = d.nickName || d.userName || '客服';
+  localStorage.setItem('kefu_agent_token', accessToken);
+  localStorage.setItem('kefu_agent_refresh', refreshToken);
+  localStorage.setItem('kefu_agent_expire', tokenExpireTime);
+  if (myId) localStorage.setItem('kefu_agent_id', myId);
+  if (myName) localStorage.setItem('kefu_agent_name', myName);
+  document.getElementById('agentName').textContent = myName;
+  document.getElementById('agentAvatar').textContent = myName.charAt(0);
+}
+
+function afterLogin() {
+  document.getElementById('agentName').textContent = myName || '客服';
+  document.getElementById('agentAvatar').textContent = (myName || '客').charAt(0);
+  loadSessions();
+  loadOnlineStatus();
+  connectWS();
+  startTokenRefresh();
+}
+
+/* ==================== Token自动刷新 ==================== */
+function startTokenRefresh() {
+  if (tokenRefreshTimer) clearInterval(tokenRefreshTimer);
+  tokenRefreshTimer = setInterval(function() {
+    var remain = tokenExpireTime - Date.now();
+    if (remain < 5 * 60 * 1000 && refreshToken) {
+      refreshAccessToken();
+    }
+  }, 60 * 1000);
+}
+
+async function refreshAccessToken() {
+  if (!refreshToken) return;
+  try {
+    var res = await fetch(API_BASE + '/refreshToken', {
+      method: 'PUT',
+      headers: {'refreshToken': refreshToken}
+    });
+    var data = await res.json();
+    if (data.code !== 200) {
+      console.warn('[客服] Token刷新失败:', data.msg);
+      return;
+    }
+    accessToken = data.data.accessToken;
+    refreshToken = data.data.refreshToken || refreshToken;
+    tokenExpireTime = Date.now() + (data.data.expireTime || 1800) * 1000;
+    localStorage.setItem('kefu_agent_token', accessToken);
+    localStorage.setItem('kefu_agent_refresh', refreshToken);
+    localStorage.setItem('kefu_agent_expire', tokenExpireTime);
+    console.log('[客服] Token自动刷新成功');
+  } catch (e) {
+    console.error('[客服] Token刷新异常', e);
+  }
+}
+
+/* ==================== 会话列表 ==================== */
+async function loadSessions() {
+  try {
+    var res = await fetch(API_BASE + '/friend/list?version=0', {
+      headers: {'accessToken': accessToken}
+    });
+    var data = await res.json();
+    if (data.code !== 200 || !data.data) {
+      document.getElementById('sessionList').innerHTML = '<div class="empty-sessions">加载会话失败</div>';
+      return;
+    }
+    sessions = data.data.filter(function(f) { return !f.deleted; });
+    renderSessions();
+  } catch (e) {
+    console.error('[客服] 加载会话列表失败', e);
+    document.getElementById('sessionList').innerHTML = '<div class="empty-sessions">网络异常</div>';
+  }
+}
+
+function renderSessions(filter) {
+  var list = document.getElementById('sessionList');
+  var filtered = filter ? sessions.filter(function(s) {
+    return (s.nickName || '').toLowerCase().indexOf(filter.toLowerCase()) >= 0 ||
+           (s.remark || '').toLowerCase().indexOf(filter.toLowerCase()) >= 0;
+  }) : sessions;
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty-sessions">暂无访客会话</div>';
+    return;
+  }
+  // 按最后消息时间排序
+  filtered.sort(function(a, b) {
+    var ta = lastMsgMap[a.id] ? lastMsgMap[a.id].time : 0;
+    var tb = lastMsgMap[b.id] ? lastMsgMap[b.id].time : 0;
+    return tb - ta;
+  });
+  var html = '';
+  for (var i = 0; i < filtered.length; i++) {
+    var s = filtered[i];
+    var last = lastMsgMap[s.id];
+    var unread = unreadMap[s.id] || 0;
+    var isOnline = onlineUsers[s.id] && onlineUsers[s.id].length > 0;
+    var active = currentVisitorId === s.id ? 'active' : '';
+    html += '<div class="session-item ' + active + '" onclick="selectVisitor(' + s.id + ',\'' + escapeHtml(s.nickName || s.userName) + '\')">';
+    html += '<div class="session-avatar">' + (s.nickName || s.userName || '访').charAt(0);
+    html += '<span class="online-indicator ' + (isOnline ? 'online' : 'offline') + '"></span></div>';
+    html += '<div class="session-content">';
+    html += '<div class="session-top"><span class="session-nick">' + escapeHtml(s.nickName || s.userName || '访客') + '</span>';
+    if (last) html += '<span class="session-time">' + formatTime(last.time) + '</span>';
+    html += '</div>';
+    html += '<div class="session-preview">' + escapeHtml(last ? last.content : (s.remark || '开始对话')) + '</div>';
+    html += '</div>';
+    if (unread > 0) html += '<div class="session-unread">' + (unread > 99 ? '99+' : unread) + '</div>';
+    html += '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function filterSessions() {
+  var kw = document.getElementById('searchInput').value.trim();
+  renderSessions(kw || null);
+}
+
+/* ==================== 在线状态 ==================== */
+async function loadOnlineStatus() {
+  try {
+    var res = await fetch(API_BASE + '/friend/online', {
+      headers: {'accessToken': accessToken}
+    });
+    var data = await res.json();
+    if (data.code === 200 && data.data) {
+      onlineUsers = {};
+      for (var i = 0; i < data.data.length; i++) {
+        var u = data.data[i];
+        onlineUsers[u.userId] = u.terminals || [];
+      }
+      renderSessions(document.getElementById('searchInput').value.trim() || null);
+      if (currentVisitorId) updateChatHeader();
+    }
+  } catch (e) {
+    console.error('[客服] 加载在线状态失败', e);
+  }
+}
+
+/* ==================== 选择访客 ==================== */
+function selectVisitor(id, name) {
+  currentVisitorId = id;
+  currentVisitorName = name;
+  unreadMap[id] = 0;
+  renderSessions(document.getElementById('searchInput').value.trim() || null);
+  document.getElementById('chatHeader').style.display = 'flex';
+  document.getElementById('inputArea').style.display = 'block';
+  document.getElementById('chatName').textContent = name;
+  document.getElementById('chatAvatar').textContent = name.charAt(0);
+  updateChatHeader();
+  loadHistory(id);
+  markAsRead(id);
+}
+
+function updateChatHeader() {
+  var isOnline = onlineUsers[currentVisitorId] && onlineUsers[currentVisitorId].length > 0;
+  document.getElementById('chatStatus').textContent = isOnline ? '在线' : '离线';
+  document.getElementById('chatStatus').style.color = isOnline ? 'var(--online)' : 'var(--text-muted)';
+}
+
+/* ==================== 历史消息 ==================== */
+async function loadHistory(friendId) {
+  var msgs = document.getElementById('messages');
+  msgs.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">⏳</div><div class="chat-empty-text">加载消息中...</div></div>';
+  try {
+    var res = await fetch(API_BASE + '/message/private/history', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'accessToken': accessToken},
+      body: JSON.stringify({friendId: friendId, minSeqNo: 0, maxSeqNo: 0})
+    });
+    var data = await res.json();
+    if (data.code !== 200 || !data.data) {
+      msgs.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-text">暂无消息记录</div></div>';
+      return;
+    }
+    var list = data.data;
+    if (!list.length) {
+      msgs.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">💬</div><div class="chat-empty-text">暂无消息记录，发送第一条消息吧</div></div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < list.length; i++) {
+      var m = list[i];
+      var isMe = m.sendId === myId;
+      html += renderMessage(m, isMe);
+    }
+    msgs.innerHTML = html;
+    scrollToBottom();
+  } catch (e) {
+    console.error('[客服] 加载历史消息失败', e);
+    msgs.innerHTML = '<div class="chat-empty"><div class="chat-empty-icon">⚠️</div><div class="chat-empty-text">加载失败，请重试</div></div>';
+  }
+}
+
+function renderMessage(m, isMe) {
+  var direction = isMe ? 'right' : 'left';
+  var avatar = isMe ? (myName || '客').charAt(0) : (currentVisitorName || '访').charAt(0);
+  var html = '<div class="msg ' + direction + '">';
+  html += '<div class="msg-avatar">' + avatar + '</div>';
+  html += '<div><div class="msg-bubble">' + escapeHtml(m.content || '') + '</div>';
+  html += '<div class="msg-time">' + formatTime(m.sendTime) + '</div></div>';
+  html += '</div>';
+  return html;
+}
+
+/* ==================== 发送消息 ==================== */
+async function sendMessage() {
+  var input = document.getElementById('msgInput');
+  var text = input.value.trim();
+  if (!text || !currentVisitorId) return;
+  input.value = '';
+  // 本地渲染
+  appendMessage({sendId: myId, content: text, sendTime: Date.now()}, true);
+  lastMsgMap[currentVisitorId] = {content: text, time: Date.now()};
+  renderSessions(document.getElementById('searchInput').value.trim() || null);
+  try {
+    var localId = 'a_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    var res = await fetch(API_BASE + '/message/private/send', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'accessToken': accessToken},
+      body: JSON.stringify({localId: localId, recvId: currentVisitorId, content: text, type: 0})
+    });
+    var data = await res.json();
+    if (data.code !== 200) {
+      console.warn('[客服] 消息发送失败:', data.msg);
+      appendSystemMsg('发送失败：' + (data.msg || '未知错误'));
+    }
+  } catch (e) {
+    console.error('[客服] 消息发送异常', e);
+    appendSystemMsg('网络异常，消息可能未送达');
+  }
+}
+
+function appendMessage(m, isMe) {
+  var msgs = document.getElementById('messages');
+  if (msgs.querySelector('.chat-empty')) msgs.innerHTML = '';
+  msgs.insertAdjacentHTML('beforeend', renderMessage(m, isMe));
+  scrollToBottom();
+}
+
+function appendSystemMsg(text) {
+  var msgs = document.getElementById('messages');
+  msgs.insertAdjacentHTML('beforeend', '<div style="text-align:center;color:var(--text-muted);font-size:12px;margin:8px 0">' + escapeHtml(text) + '</div>');
+  scrollToBottom();
+}
+
+function handleKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+/* ==================== 消息已读 ==================== */
+async function markAsRead(friendId) {
+  try {
+    await fetch(API_BASE + '/message/private/readed', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json', 'accessToken': accessToken},
+      body: JSON.stringify({friendId: friendId})
+    });
+  } catch (e) { /* 静默 */ }
+}
+
+/* ==================== WebSocket ==================== */
+function connectWS() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  showConnBar('connecting', '正在连接...');
+  try {
+    ws = new WebSocket(WS_URL);
+  } catch (e) {
+    console.error('[客服] WS创建失败', e);
+    scheduleReconnect();
+    return;
+  }
+  ws.onopen = function() {
+    wsReconnectCount = 0;
+    // 鉴权
+    try {
+      ws.send(JSON.stringify({cmd: 0, data: {accessToken: accessToken, devId: DEV_ID}}));
+    } catch (e) { console.error('[客服] 鉴权包发送失败', e); }
+    // 心跳
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    heartbeatTimer = setInterval(function() {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try { ws.send(JSON.stringify({cmd: 1, data: {}})); } catch (e) {}
+      }
+    }, 30000);
+    showConnBar('online', '已连接');
+    setTimeout(function() { hideConnBar(); }, 2000);
+    // 拉取离线消息
+    loadOfflineMessages();
+  };
+  ws.onmessage = function(e) {
+    try {
+      var pkg = JSON.parse(e.data);
+      handleWSPacket(pkg);
+    } catch (err) {
+      console.error('[客服] WS消息解析失败', err, e.data);
+    }
+  };
+  ws.onclose = function() {
+    console.warn('[客服] WS断开');
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    showConnBar('offline', '连接已断开，正在重连...');
+    scheduleReconnect();
+  };
+  ws.onerror = function(e) {
+    console.error('[客服] WS错误', e);
+  };
+}
+
+function scheduleReconnect() {
+  if (wsReconnectTimer) clearTimeout(wsReconnectTimer);
+  wsReconnectCount++;
+  var delay = Math.min(1000 * Math.pow(2, wsReconnectCount - 1), 30000);
+  wsReconnectTimer = setTimeout(function() { connectWS(); }, delay);
+}
+
+function handleWSPacket(pkg) {
+  // cmd=3 私聊消息
+  if (pkg.cmd === 3 && pkg.data) {
+    var body = pkg.data;
+    var senderId = body.sendId;
+    // 只处理访客发来的消息
+    if (senderId === myId) return;
+    // 更新最后消息
+    lastMsgMap[senderId] = {content: body.content, time: body.sendTime || Date.now()};
+    // 如果是当前会话，直接渲染
+    if (senderId === currentVisitorId) {
+      appendMessage(body, false);
+      markAsRead(senderId);
+    } else {
+      // 未读+1
+      unreadMap[senderId] = (unreadMap[senderId] || 0) + 1;
+    }
+    renderSessions(document.getElementById('searchInput').value.trim() || null);
+  }
+  // cmd=0 鉴权响应
+  else if (pkg.cmd === 0) {
+    console.log('[客服] WS鉴权响应', pkg.data);
+  }
+}
+
+/* ==================== 离线消息 ==================== */
+async function loadOfflineMessages() {
+  try {
+    var res = await fetch(API_BASE + '/message/private/loadOfflineMessage?minId=0', {
+      headers: {'accessToken': accessToken}
+    });
+    var data = await res.json();
+    if (data.code !== 200 || !data.data || !Array.isArray(data.data)) return;
+    var messages = data.data;
+    for (var i = 0; i < messages.length; i++) {
+      var msg = messages[i];
+      if (msg.sendId === myId) continue;
+      lastMsgMap[msg.sendId] = {content: msg.content, time: msg.sendTime};
+      if (msg.sendId === currentVisitorId) {
+        appendMessage(msg, false);
+      } else {
+        unreadMap[msg.sendId] = (unreadMap[msg.sendId] || 0) + 1;
+      }
+    }
+    renderSessions(document.getElementById('searchInput').value.trim() || null);
+    if (currentVisitorId) markAsRead(currentVisitorId);
+  } catch (e) {
+    console.error('[客服] 拉取离线消息失败', e);
+  }
+}
+
+/* ==================== 快捷回复面板 ==================== */
+function initReplyPanel() {
+  var cats = ['all'];
+  for (var i = 0; i < QUICK_REPLIES.length; i++) {
+    if (cats.indexOf(QUICK_REPLIES[i].cat) < 0) cats.push(QUICK_REPLIES[i].cat);
+  }
+  var catHtml = '';
+  for (var j = 0; j < cats.length; j++) {
+    catHtml += '<span class="reply-cat' + (cats[j] === 'all' ? ' active' : '') + '" onclick="filterReply(\'' + cats[j] + '\')">' + (cats[j] === 'all' ? '全部' : cats[j]) + '</span>';
+  }
+  document.getElementById('replyCats').innerHTML = catHtml;
+  renderReplyList('all');
+}
+
+function filterReply(cat) {
+  currentCategory = cat;
+  var cats = document.querySelectorAll('.reply-cat');
+  for (var i = 0; i < cats.length; i++) {
+    cats[i].classList.toggle('active', cats[i].textContent === (cat === 'all' ? '全部' : cat));
+  }
+  renderReplyList(cat);
+}
+
+function renderReplyList(cat) {
+  var list = document.getElementById('replyList');
+  var filtered = cat === 'all' ? QUICK_REPLIES : QUICK_REPLIES.filter(function(r) { return r.cat === cat; });
+  var html = '';
+  for (var i = 0; i < filtered.length; i++) {
+    var r = filtered[i];
+    html += '<div class="reply-item" onclick="insertReply(\'' + r.id + '\')">';
+    html += '<div class="reply-id">' + r.id + ' · ' + r.cat + '</div>';
+    html += escapeHtml(r.reply.length > 50 ? r.reply.substr(0, 50) + '...' : r.reply);
+    html += '</div>';
+  }
+  list.innerHTML = html;
+}
+
+function insertReply(id) {
+  var r = QUICK_REPLIES.find(function(x) { return x.id === id; });
+  if (!r) return;
+  var input = document.getElementById('msgInput');
+  input.value = r.reply;
+  input.focus();
+}
+
+function toggleReplyPanel() {
+  document.getElementById('replyPanel').classList.toggle('collapsed');
+}
+
+/* ==================== 快捷问题栏 ==================== */
+function initQuickBar() {
+  var bar = document.getElementById('quickBar');
+  var html = '';
+  for (var i = 0; i < QUICK_QUESTIONS.length; i++) {
+    html += '<span class="quick-tag" onclick="quickSend(\'' + QUICK_QUESTIONS[i] + '\')">' + QUICK_QUESTIONS[i] + '</span>';
+  }
+  bar.innerHTML = html;
+}
+
+function quickSend(text) {
+  if (!currentVisitorId) return;
+  document.getElementById('msgInput').value = text;
+  sendMessage();
+}
+
+/* ==================== 工具函数 ==================== */
+function escapeHtml(str) {
+  if (!str) return '';
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  var now = new Date();
+  var isToday = d.toDateString() === now.toDateString();
+  var h = String(d.getHours()).padStart(2, '0');
+  var m = String(d.getMinutes()).padStart(2, '0');
+  if (isToday) return h + ':' + m;
+  return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + h + ':' + m;
+}
+
+function scrollToBottom() {
+  var msgs = document.getElementById('messages');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showConnBar(type, text) {
+  var bar = document.getElementById('connBar');
+  bar.className = 'conn-bar show ' + type;
+  bar.textContent = text;
+}
+
+function hideConnBar() {
+  document.getElementById('connBar').className = 'conn-bar';
+}
+</script>
+</body>
+</html>
