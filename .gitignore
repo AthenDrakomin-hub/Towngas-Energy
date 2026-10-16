@@ -51,3 +51,4 @@ docker-compose.*.yml
 deploy-fix.sh
 *.tmp.sh
 config.js
+config-agent.js
