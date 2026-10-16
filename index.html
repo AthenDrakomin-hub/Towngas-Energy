@@ -232,7 +232,6 @@ var accessToken = '';
 var myId = null;               // 修复P0-2：从登录响应动态获取，不再硬编码 20045
 var devId = '';                // 修复P3-9：持久化，不再刷新即变
 var ws = null;
-var wsState = 'disconnected';  // disconnected | connecting | connected | reconnecting
 var reconnectAttempts = 0;
 var reconnectTimer = null;
 var heartbeatTimer = null;
@@ -376,7 +375,6 @@ function appendMessage(direction, text) {
 /* ==================== 连接状态 UI 绑定（修复P2-6） ==================== */
 
 function setConnectionState(state) {
-  wsState = state;
   var dot = document.getElementById('statusDot');
   var text = document.getElementById('statusText');
   dot.className = 'status-dot';
