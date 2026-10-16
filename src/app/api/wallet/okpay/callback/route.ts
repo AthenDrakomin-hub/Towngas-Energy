@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { deposits, accounts, ledgerEntries, notifications } from "@/db/schema";
 import { verifyCallbackSign } from "@/lib/okpay-config";
+import { logTerminal } from "@/lib/logs";
 
 export const dynamic = "force-dynamic";
 
@@ -76,12 +77,12 @@ export async function POST(req: Request) {
       });
     }
 
-    console.log(`Okpay 充值到账: 用户=${deposit.userId}, 金额=${deposit.amount}, 订单=${order_id}`);
+    await logTerminal("info", "充值", `Okpay 充值到账 | 用户=${deposit.userId} | 金额=${deposit.amount} | 订单=${order_id}`);
 
     // 9. 返回 success 告诉 Okpay 我们收到了
     return new Response("success", { status: 200 });
   } catch (err) {
-    console.error("Okpay 回调处理错误:", err);
+    await logTerminal("error", "充值", `Okpay 回调处理错误 | ${err instanceof Error ? err.message : "未知"}`);
     return new Response("fail", { status: 500 });
   }
 }

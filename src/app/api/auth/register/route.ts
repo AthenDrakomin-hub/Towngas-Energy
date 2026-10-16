@@ -1,28 +1,14 @@
-import { createHash, randomBytes } from "crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, accounts } from "@/db/schema";
-import { errorResponse, ok } from "@/lib/auth";
+import { errorResponse, ok, hashPassword } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-/** 密码哈希（用内置 crypto，不需要额外依赖） */
-function hashPassword(password: string): string {
-  const salt = randomBytes(16).toString("hex");
-  const hash = createHash("sha256").update(salt + password).digest("hex");
-  return `${salt}:${hash}`;
-}
-
-/** 验证密码 */
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(":");
-  const verifyHash = createHash("sha256").update(salt + password).digest("hex");
-  return hash === verifyHash;
-}
-
 /**
  * 用户注册
- * 用户名 + 密码注册
+ * 用户名 + 密码注册，密码使用 scrypt 哈希
+ * 用户创建 + 账户初始化在同一事务中，防止孤儿用户
  */
 export async function POST(req: Request) {
   try {
@@ -54,7 +40,7 @@ export async function POST(req: Request) {
       return errorResponse(new Error("用户名已被注册"));
     }
 
-    // 加密密码
+    // 加密密码（统一使用 lib/auth 的 scrypt）
     const hashedPassword = hashPassword(password);
 
     // 创建用户 + 初始化账户（同一事务，防止孤儿用户）

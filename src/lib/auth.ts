@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, scryptSync, timingSafeEqual, createHash } from "node:crypto";
 import { cookies } from "next/headers";
 import { and, eq, gt, isNull, gte, count, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -17,10 +17,19 @@ export function hashPassword(password: string): string {
 export function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(":");
   if (!salt || !hash) return false;
-  const candidate = scryptSync(password, salt, 32);
-  const expected = Buffer.from(hash, "hex");
-  if (candidate.length !== expected.length) return false;
-  return timingSafeEqual(candidate, expected);
+  // 先尝试 scrypt（默认算法，32字节hex = 64字符）
+  try {
+    const candidate = scryptSync(password, salt, 32);
+    const expected = Buffer.from(hash, "hex");
+    if (candidate.length === expected.length && timingSafeEqual(candidate, expected)) {
+      return true;
+    }
+  } catch {
+    // scrypt 验证失败，继续尝试 SHA256 兼容
+  }
+  // 兼容旧版 SHA256+salt 格式
+  const sha256Hash = createHash("sha256").update(salt + password).digest("hex");
+  return sha256Hash === hash;
 }
 
 export type SessionUser = {

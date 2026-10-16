@@ -1,23 +1,23 @@
-import { createHash, randomBytes, randomUUID } from "crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { users, sessions } from "@/db/schema";
-import { errorResponse, ok, checkLoginRateLimit, recordLoginAttempt, getClientIp } from "@/lib/auth";
+import { users } from "@/db/schema";
+import {
+  errorResponse,
+  ok,
+  verifyPassword,
+  createSession,
+  checkLoginRateLimit,
+  recordLoginAttempt,
+  getClientIp,
+} from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
-
-/** 验证密码（兼容现有 SHA256+salt 格式） */
-function verifyPassword(password: string, stored: string): boolean {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
-  const verifyHash = createHash("sha256").update(salt + password).digest("hex");
-  return hash === verifyHash;
-}
 
 /**
  * 用户登录
  * 用户名 + 密码登录，返回 session token
  * 含 IP 限流：15分钟内失败5次锁定
+ * 密码哈希兼容 scrypt（新版）和 SHA256+salt（旧版）
  */
 export async function POST(req: Request) {
   const ip = getClientIp(req);
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       return errorResponse(new Error("账户已被禁用"));
     }
 
-    // 验证密码
+    // 验证密码（兼容 scrypt 和 SHA256）
     const valid = verifyPassword(body.password, user.passwordHash);
     if (!valid) {
       await recordLoginAttempt(ip, body.username, false, userAgent);
@@ -70,15 +70,8 @@ export async function POST(req: Request) {
       await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
     }
 
-    // 创建 session
-    const token = randomUUID();
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7天有效
-
-    await db.insert(sessions).values({
-      id: token,
-      userId: user.id,
-      expiresAt,
-    });
+    // 创建 session（统一使用 lib/auth 的 createSession）
+    const token = await createSession(user.id, ip, userAgent);
 
     return ok({
       message: "登录成功",
