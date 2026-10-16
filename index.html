@@ -818,33 +818,41 @@ async function loadOfflineMessages() {
   }
 }
 
-/* ==================== 消息发送（修复P1-3/P3-10：双通道互斥） ==================== */
+/* ==================== 消息发送（HTTP API，非WS） ==================== */
 
-/** 通过 WS 发送消息，返回是否发送成功 */
-function sendViaWS(text) {
-  if (!ws || ws.readyState !== WebSocket.OPEN) {
+/** 通过 HTTP API 发送私聊消息到客服，返回是否发送成功 */
+async function sendViaHttp(text) {
+  if (!accessToken) {
+    toast('未登录，请刷新页面');
     return false;
   }
   if (!myId) {
-    console.warn('[客服] myId 为空，无法发送消息');
     toast('用户信息异常，请重新登录');
     return false;
   }
   try {
-    ws.send(JSON.stringify({
-      cmd: 2,
-      data: {
-        messageId: 'm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-        sendId: myId,
-        receiveId: KEFU_ID,
-        type: 0,
+    var localId = 'm_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    var res = await fetch(API_BASE + '/message/private/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'accessToken': accessToken
+      },
+      body: JSON.stringify({
+        localId: localId,
+        recvId: KEFU_ID,
         content: text,
-        sendTime: Date.now()
-      }
-    }));
+        type: 0
+      })
+    });
+    var data = await res.json();
+    if (data.code !== 200) {
+      console.warn('[客服] 消息发送失败:', data.msg);
+      return false;
+    }
     return true;
   } catch (e) {
-    console.error('[客服] WS 消息发送失败', e);
+    console.error('[客服] 消息发送异常', e);
     return false;
   }
 }
@@ -859,25 +867,21 @@ function sendMsg() {
 
   var reply = getAutoReply(text);
   if (reply) {
-    // 修复P1-3：匹配到自动回复 → 仅本地应答，不发WS，避免人工客服重复回复
+    // 匹配到自动回复 → 仅本地应答，不发HTTP，避免人工客服重复回复
     showTyping();
     setTimeout(function () {
       hideTyping();
       addMsg('left', reply);
     }, 400);
   } else {
-    // 未匹配 → 走 WS 发送给人工客服
-    var sent = sendViaWS(text);
-    if (sent) {
-      showTyping();
-    } else {
-      // WS 不可用降级提示
-      showTyping();
-      setTimeout(function () {
-        hideTyping();
+    // 未匹配 → 走 HTTP API 发送给人工客服
+    showTyping();
+    sendViaHttp(text).then(function (sent) {
+      hideTyping();
+      if (!sent) {
         addMsg('left', '当前网络异常，消息可能未送达，请检查网络后重试。');
-      }, 400);
-    }
+      }
+    });
   }
 }
 
