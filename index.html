@@ -758,16 +758,23 @@ function handleQuick(index) {
     var reply = getAutoReply(text);
     if (reply) {
       addMsg('left', reply);
+      // 恢复按钮
+      if (box) {
+        var restored = box.querySelectorAll('.quick-q');
+        for (var j = 0; j < restored.length; j++) restored[j].classList.remove('disabled');
+      }
     } else {
-      // 未匹配自动回复，走 WS 转人工
-      var sent = sendViaWS(text);
-      addMsg('left', sent ? '正在为您转接人工客服，请稍候...' : '当前网络异常，请稍后重试。');
-      if (sent) showTyping();
-    }
-    // 恢复按钮
-    if (box) {
-      var restored = box.querySelectorAll('.quick-q');
-      for (var j = 0; j < restored.length; j++) restored[j].classList.remove('disabled');
+      // 未匹配自动回复，走 HTTP API 转人工
+      sendViaHttp(text).then(function (sent) {
+        hideTyping();
+        addMsg('left', sent ? '正在为您转接人工客服，请稍候...' : '当前网络异常，请稍后重试。');
+        // 恢复按钮
+        if (box) {
+          var restored = box.querySelectorAll('.quick-q');
+          for (var j = 0; j < restored.length; j++) restored[j].classList.remove('disabled');
+        }
+      });
+      return; // 异步处理，跳过下面的恢复按钮
     }
   }, 600);
 }
