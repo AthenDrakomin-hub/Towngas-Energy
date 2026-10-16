@@ -229,6 +229,9 @@ var TYPING_TIMEOUT = 15000;       // typing 指示器超时 15s
 
 /* ==================== 运行时状态 ==================== */
 var accessToken = '';
+var refreshToken = '';           // 刷新token，30天有效，用于自动续期
+var tokenExpireTime = 0;         // accessToken 过期时间戳(ms)
+var tokenRefreshTimer = null;    // token 自动刷新定时器
 var myId = null;               // 修复P0-2：从登录响应动态获取，不再硬编码 20045
 var devId = '';                // 修复P3-9：持久化，不再刷新即变
 var ws = null;
@@ -338,7 +341,8 @@ function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
       devId: devId,
-      userName: document.getElementById('loginUser').value
+      userName: document.getElementById('loginUser').value,
+      refreshToken: refreshToken
     }));
   } catch (e) { /* 隐私模式等场景静默降级 */ }
 }
@@ -431,6 +435,10 @@ async function doLogin() {
     }
 
     accessToken = data.data.accessToken;
+    refreshToken = data.data.refreshToken || '';
+    // accessToken 有效期默认1800秒(30分钟)，提前5分钟刷新
+    var expiresIn = data.data.accessTokenExpiresIn || 1800;
+    tokenExpireTime = Date.now() + (expiresIn - 300) * 1000;
 
     // 修复P0-2：从登录响应动态获取用户ID，兼容多种字段命名
     myId = data.data.userId || data.data.id || data.data.uid || null;
@@ -439,6 +447,7 @@ async function doLogin() {
     }
 
     saveState();
+    startTokenRefreshTimer();
 
     // 进入聊天界面
     document.getElementById('loginMask').classList.add('hidden');
@@ -453,6 +462,67 @@ async function doLogin() {
     btn.disabled = false;
     btn.textContent = '登 录';
   }
+}
+
+/* ==================== Token 自动刷新（accessToken 30分钟有效期） ==================== */
+
+/** 用 refreshToken 换取新的 accessToken，返回是否成功 */
+async function refreshAccessToken() {
+  if (!refreshToken) {
+    console.warn('[客服] 无 refreshToken，无法刷新');
+    return false;
+  }
+  try {
+    var res = await fetch(API_BASE + '/refreshToken', {
+      method: 'PUT',
+      headers: { 'refreshToken': refreshToken }
+    });
+    var data = await res.json();
+    if (data.code !== 200 || !data.data || !data.data.accessToken) {
+      console.warn('[客服] Token刷新失败:', data.msg);
+      return false;
+    }
+    accessToken = data.data.accessToken;
+    refreshToken = data.data.refreshToken || refreshToken;
+    var expiresIn = data.data.accessTokenExpiresIn || 1800;
+    tokenExpireTime = Date.now() + (expiresIn - 300) * 1000;
+    saveState();
+    console.log('[客服] Token自动刷新成功');
+    return true;
+  } catch (e) {
+    console.error('[客服] Token刷新异常', e);
+    return false;
+  }
+}
+
+/** 启动定时刷新：在 accessToken 过期前5分钟自动刷新 */
+function startTokenRefreshTimer() {
+  clearTimeout(tokenRefreshTimer);
+  if (!refreshToken) return;
+  var delay = tokenExpireTime - Date.now();
+  if (delay <= 0) {
+    // 已过期，立即刷新
+    refreshAccessToken();
+    delay = 1500 * 1000; // 25分钟后再次刷新
+  }
+  tokenRefreshTimer = setTimeout(function () {
+    refreshAccessToken().then(function (ok) {
+      if (ok) {
+        startTokenRefreshTimer();
+      } else {
+        // 刷新失败，5分钟后重试
+        tokenRefreshTimer = setTimeout(startTokenRefreshTimer, 5 * 60 * 1000);
+      }
+    });
+  }, delay);
+}
+
+/** 检查 accessToken 是否即将过期，如过期则同步刷新（WS重连前调用） */
+async function ensureTokenValid() {
+  if (!accessToken) return false;
+  if (Date.now() < tokenExpireTime) return true;
+  console.log('[客服] Token即将过期，主动刷新');
+  return await refreshAccessToken();
 }
 
 /* ==================== WebSocket 模块（修复P1-5：指数退避重连） ==================== */
@@ -560,7 +630,9 @@ function scheduleReconnect() {
   setConnectionState('reconnecting');
   clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(function () {
-    connectWS();
+    ensureTokenValid().then(function () {
+      connectWS();
+    });
   }, delay);
 }
 
@@ -811,9 +883,12 @@ function sendMsg() {
 
 /* ==================== 初始化 ==================== */
 
-function initChat() {
+async function initChat() {
   // 恢复历史消息
   var hasHistory = loadHistory();
+
+  // 连接前确保 token 有效（30分钟有效期，过期则自动刷新）
+  await ensureTokenValid();
 
   // 建立 WS 连接
   connectWS();
@@ -845,6 +920,29 @@ function init() {
     return;
   }
 
+  // 从缓存恢复 refreshToken，自动续期登录（无需重新输入账号密码）
+  if (state && state.refreshToken) {
+    refreshToken = state.refreshToken;
+    refreshAccessToken().then(function (ok) {
+      if (ok && myId) {
+        document.getElementById('loginMask').classList.add('hidden');
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('msgInput').disabled = false;
+        document.getElementById('sendBtn').disabled = false;
+        initChat();
+      } else {
+        // 恢复失败，回退到 config.js 或登录表单
+        fallbackLogin(state);
+      }
+    });
+    return;
+  }
+
+  fallbackLogin(state);
+}
+
+/** 兜底登录：config.js 自动登录或显示登录表单 */
+function fallbackLogin(state) {
   // 从 config.js 读取访客账号自动登录（生产环境部署，不提交git）
   if (window.VISITOR_CONFIG && window.VISITOR_CONFIG.userName && window.VISITOR_CONFIG.password) {
     document.getElementById('loginUser').value = window.VISITOR_CONFIG.userName;
